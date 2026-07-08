@@ -157,6 +157,7 @@ input:focus-visible {
 
 .brand-mark {
   display: inline-grid;
+  flex: none;
   width: 28px;
   height: 28px;
   place-items: center;
@@ -167,6 +168,12 @@ input:focus-visible {
   color: var(--ink);
   font: 700 10px/1 var(--mono);
   letter-spacing: 0.04em;
+}
+
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .brand-text {
@@ -478,6 +485,30 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.section-action {
+  flex: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: 11px/1 var(--mono);
+  padding: 3px 0;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.section-action:hover {
+  border-bottom-color: var(--line-2);
+  color: var(--ink);
+}
+
+.section-action:active {
+  transform: translateY(1px);
+}
+
 .panel {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -635,6 +666,80 @@ input:focus-visible {
   transform: translateY(1px);
 }
 
+.copy-button.is-copied {
+  border-color: var(--green-soft);
+  background: #f6fbf7;
+  color: var(--green);
+}
+
+.conn-panel {
+  padding: 4px 20px 18px;
+}
+
+.conn-panel .summary-line {
+  padding: 13px 0 1px;
+}
+
+.conn-group {
+  margin-top: 16px;
+}
+
+.conn-group-title {
+  margin-bottom: 12px;
+  color: var(--muted-2);
+  font: 12px/1.3 var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.conn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.conn-card {
+  display: grid;
+  min-width: 0;
+  min-height: 68px;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0 16px;
+}
+
+.conn-card-host {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font: 16px/1.3 var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conn-card-status {
+  color: var(--muted);
+  font: 13px/1.3 var(--sans);
+  white-space: nowrap;
+}
+
+.conn-card-status.green {
+  color: var(--green);
+}
+
+.conn-card-status.red {
+  color: var(--red);
+}
+
+.conn-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
 .data-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -746,8 +851,7 @@ input:focus-visible {
 }
 
 .path-list,
-.status-list,
-.fingerprint-list {
+.status-list {
   display: grid;
   gap: 0;
 }
@@ -785,10 +889,110 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.path-row .mini-title {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.path-row {
+  grid-template-columns: 8px minmax(0, 1fr) minmax(128px, auto);
+}
+
+.path-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 7px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.path-host {
+  color: var(--muted);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.path-sep {
+  color: var(--muted-2);
+  font-weight: 500;
+}
+
+.status-row {
+  color: inherit;
+}
+
+.status-link {
+  justify-self: end;
+  border-bottom-color: currentColor;
+  color: var(--muted);
+}
+
+.status-link.green {
+  color: var(--green);
+}
+
+.status-link.amber {
+  color: var(--amber);
+}
+
+.status-link.red {
+  color: var(--red);
+}
+
+.fingerprint-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fingerprint-cell {
+  min-width: 0;
+  min-height: 126px;
+  border-top: 1px solid #f0f0ed;
+  padding: 26px 36px 28px;
+}
+
+.fingerprint-cell:nth-child(1),
+.fingerprint-cell:nth-child(2) {
+  border-top: 0;
+}
+
+.fingerprint-cell:nth-child(2n) {
+  border-left: 1px solid #f0f0ed;
+}
+
+.fingerprint-key {
+  margin-bottom: 10px;
+  color: var(--muted-2);
+  font: 12px/1.3 var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.fingerprint-value {
+  color: var(--ink-2);
+  font: 16px/1.5 var(--mono);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.trace-panel {
+  padding-bottom: 24px;
+}
+
+.trace-intro {
+  margin: 0;
+  color: #5c5c55;
+  font-size: 15px;
+  line-height: 1.75;
+  padding: 28px 40px 24px;
+}
+
 .trace-tabs {
   display: flex;
-  gap: 16px;
-  padding: 0 16px;
+  gap: 40px;
+  overflow-x: auto;
+  padding: 0 40px;
   border-bottom: 1px solid #f0f0ed;
 }
 
@@ -809,13 +1013,22 @@ input:focus-visible {
   font-weight: 650;
 }
 
-.command-row {
+.trace-command-grid {
   display: grid;
-  grid-template-columns: minmax(84px, auto) minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  padding: 22px 40px 0;
+}
+
+.trace-command-card {
+  min-width: 0;
+}
+
+.trace-command-head {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  border-top: 1px solid #f0f0ed;
-  padding: 13px 16px;
 }
 
 .command-label {
@@ -824,15 +1037,28 @@ input:focus-visible {
 }
 
 .command-code {
+  display: block;
   overflow: hidden;
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 10px;
+  background: #f7f7f4;
   color: var(--ink-2);
-  font: 12px/1.45 var(--mono);
+  font: 13px/1.45 var(--mono);
+  padding: 12px 22px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .copy-button {
   padding: 7px 11px;
+}
+
+.trace-note {
+  margin: 24px 40px 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.75;
 }
 
 .site-footer {
@@ -933,6 +1159,39 @@ input:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .conn-panel {
+    padding: 4px 14px 16px;
+  }
+
+  .conn-grid,
+  .fingerprint-grid,
+  .trace-command-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .conn-card {
+    min-height: 62px;
+    gap: 12px;
+    padding: 0 14px;
+  }
+
+  .conn-card-host {
+    font-size: 14.5px;
+  }
+
+  .fingerprint-cell {
+    min-height: auto;
+    padding: 20px 18px 22px;
+  }
+
+  .fingerprint-cell:nth-child(2) {
+    border-top: 1px solid #f0f0ed;
+  }
+
+  .fingerprint-cell:nth-child(2n) {
+    border-left: 0;
+  }
+
   .data-cell:nth-child(2) {
     border-top: 1px solid #f0f0ed;
   }
@@ -950,13 +1209,31 @@ input:focus-visible {
     text-align: left;
   }
 
-  .command-row {
-    grid-template-columns: 1fr auto;
+  .status-link {
+    justify-self: start;
+  }
+
+  .trace-intro {
+    padding: 22px 20px 20px;
+  }
+
+  .trace-tabs {
+    gap: 28px;
+    padding: 0 20px;
+  }
+
+  .trace-command-grid {
+    gap: 18px;
+    padding: 20px 20px 0;
+  }
+
+  .trace-note {
+    margin: 20px 20px 0;
   }
 
   .command-code {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    overflow-x: auto;
+    text-overflow: clip;
   }
 
   .site-footer {

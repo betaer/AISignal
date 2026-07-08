@@ -34,7 +34,7 @@
       privacy: false
     },
     open: {
-      ip: true,
+      ip: false,
       consistency: false,
       lang: false,
       tz: false,
@@ -101,13 +101,28 @@
     "WenQuanYi Micro Hei"
   ];
 
-  var connTargets = {
-    "AI 与开发": ["status.openai.com", "claude.ai", "anthropic.com", "github.com", "nodejs.org"],
-    "全球服务": ["google.com", "youtube.com", "x.com", "wikipedia.org", "cloudflare.com"],
-    "中国大陆": ["baidu.com", "qq.com", "bilibili.com", "weibo.com", "zhihu.com"]
-  };
+  var connTargets = [
+    {
+      title: "AI 服务",
+      sites: [
+        { host: "claude.ai", unprobeable: true },
+        { host: "chatgpt.com", unprobeable: true },
+        { host: "openai.com", probeUrl: "https://status.openai.com/api/v2/status.json", mode: "cors" },
+        { host: "gemini.google.com", probeUrl: "https://www.gstatic.com/generate_204" }
+      ]
+    },
+    {
+      title: "境外 · 常被墙",
+      sites: [{ host: "google.com" }, { host: "youtube.com" }, { host: "x.com" }, { host: "wikipedia.org" }]
+    },
+    {
+      title: "境内站点",
+      sites: [{ host: "baidu.com" }, { host: "qq.com" }, { host: "taobao.com" }, { host: "bilibili.com" }]
+    }
+  ];
 
   var aiTargets = [
+    { name: "Cloudflare 基准", host: "cloudflare.com" },
     { name: "ChatGPT", host: "chatgpt.com" },
     { name: "OpenAI Platform", host: "platform.openai.com" },
     { name: "Claude", host: "claude.ai" },
@@ -117,45 +132,37 @@
 
   var statusTargets = [
     {
-      name: "OpenAI / ChatGPT",
-      url: "https://status.openai.com/api/v2/status.json",
-      page: "https://status.openai.com"
-    },
-    {
       name: "Anthropic / Claude",
       url: "https://status.claude.com/api/v2/status.json",
       page: "https://status.claude.com"
     },
     {
-      name: "Cloudflare",
-      url: "https://www.cloudflarestatus.com/api/v2/status.json",
-      page: "https://www.cloudflarestatus.com"
+      name: "OpenAI / ChatGPT",
+      url: "https://status.openai.com/api/v2/status.json",
+      page: "https://status.openai.com"
     }
   ];
 
   var traceTabs = [
     {
-      name: "macOS",
+      name: "🍎 macOS",
       commands: [
-        ["安装 mtr", "brew install mtr"],
-        ["运行", "sudo mtr -rwzbc 20 claude.ai"],
-        ["系统自带", "traceroute claude.ai"]
+        ["① 安装 mtr", "brew install mtr"],
+        ["② 运行（推荐）", "sudo mtr -rwzbc 20 claude.ai"]
       ]
     },
     {
-      name: "Windows",
+      name: "▣ Windows",
       commands: [
-        ["系统自带", "tracert claude.ai"],
-        ["PowerShell", "Test-NetConnection claude.ai -TraceRoute"],
-        ["图形化", "下载并运行 WinMTR"]
+        ["① 系统自带", "tracert claude.ai"],
+        ["② PowerShell", "Test-NetConnection claude.ai -TraceRoute"]
       ]
     },
     {
-      name: "Ubuntu / Debian",
+      name: "🐧 Ubuntu / Debian",
       commands: [
-        ["安装", "sudo apt install -y mtr traceroute"],
-        ["运行", "sudo mtr -rwzbc 20 claude.ai"],
-        ["系统自带", "traceroute claude.ai"]
+        ["① 安装", "sudo apt install -y mtr traceroute"],
+        ["② 运行（推荐）", "sudo mtr -rwzbc 20 claude.ai"]
       ]
     }
   ];
@@ -569,29 +576,29 @@
   function collectFingerprint() {
     var nav = window.navigator;
     var screenInfo = window.screen || {};
-    var webgl = getWebglInfo();
     var canvasHash = getCanvasHash();
-    var connection = nav.connection || nav.mozConnection || nav.webkitConnection || {};
+    var languages = Array.from(nav.languages || [nav.language || ""]).filter(Boolean);
+    var dpr = window.devicePixelRatio || 1;
     return [
-      { key: "User Agent", value: nav.userAgent || "未知", sensitive: true },
-      { key: "平台", value: nav.platform || "未知" },
-      { key: "语言", value: Array.from(nav.languages || [nav.language || ""]).join(" / ") || "未知" },
-      { key: "时区", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "未知" },
+      { key: "UserAgent", value: nav.userAgent || "未知", sensitive: true },
+      { key: "平台 Platform", value: nav.platform || "未知" },
       {
         key: "屏幕",
         value:
           (screenInfo.width || "?") +
           "x" +
           (screenInfo.height || "?") +
-          " · DPR " +
-          (window.devicePixelRatio || 1)
+          " @" +
+          dpr +
+          "x · " +
+          (screenInfo.colorDepth || "?") +
+          "bit"
       },
-      { key: "CPU 线程", value: nav.hardwareConcurrency || "未知" },
-      { key: "内存", value: nav.deviceMemory ? nav.deviceMemory + " GB" : "未知" },
-      { key: "触控点", value: nav.maxTouchPoints || 0 },
-      { key: "网络类型", value: connection.effectiveType || "未知" },
-      { key: "WebGL", value: webgl, sensitive: true },
-      { key: "Canvas", value: canvasHash, sensitive: true }
+      { key: "CPU 核心", value: nav.hardwareConcurrency ? nav.hardwareConcurrency + " 核" : "未知" },
+      { key: "设备内存", value: nav.deviceMemory ? nav.deviceMemory + " GB" : "未知" },
+      { key: "语言", value: languages.join(", ") || "未知" },
+      { key: "时区", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "未知" },
+      { key: "Canvas 指纹", value: canvasHash, sensitive: true }
     ];
   }
 
@@ -626,7 +633,7 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#1a1a18";
       ctx.font = "16px -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.fillText("SignalGuard 指纹样本 2026", 18, 24);
+      ctx.fillText("AI Signal Guard 指纹样本 2026", 18, 24);
       ctx.strokeStyle = "#7aa981";
       ctx.arc(88, 58, 18, 0, Math.PI * 1.72);
       ctx.stroke();
@@ -726,7 +733,6 @@
         });
         recomputeConsistency();
         if (!state.multi.length) {
-          state.multiIp = result.ip || "";
           runMulti(result.ip || "");
         }
       })
@@ -1077,12 +1083,12 @@
   function runConn() {
     state.conn = {
       running: true,
-      groups: Object.keys(connTargets).map(function (title) {
+      groups: connTargets.map(function (group) {
         return {
-          title: title,
-          sites: connTargets[title].map(function (host) {
+          title: group.title,
+          sites: group.sites.map(function (site) {
             return {
-              host: host,
+              host: site.host,
               code: "pending",
               status: "检测中"
             };
@@ -1091,20 +1097,27 @@
       })
     };
     render();
-    Object.keys(connTargets).forEach(function (title) {
-      connTargets[title].forEach(function (host) {
-        probeHost(host).then(function (ok) {
-          updateConnHost(host, ok ? "ok" : "bad", ok ? "可达" : "不可达");
+    connTargets.forEach(function (group) {
+      group.sites.forEach(function (site) {
+        if (site.unprobeable) {
+          updateConnHost(site.host, "unknown", "无法探测");
+          return;
+        }
+        probeHost(site).then(function (result) {
+          updateConnHost(site.host, result.code, result.status);
         });
       });
     });
   }
 
-  function probeHost(host) {
+  function probeHost(site) {
     return new Promise(function (resolve) {
-      var img = new Image();
       var done = false;
+      var startedAt = performance.now();
+      var controller = new AbortController();
+      var url = site.probeUrl || "https://" + site.host + "/?_=" + Date.now();
       var timer = window.setTimeout(function () {
+        controller.abort();
         finish(false);
       }, 6500);
       function finish(ok) {
@@ -1113,16 +1126,23 @@
         }
         done = true;
         window.clearTimeout(timer);
-        resolve(ok);
+        resolve({
+          code: ok ? "ok" : "bad",
+          status: ok ? "可达 " + Math.max(1, Math.round(performance.now() - startedAt)) + "ms" : "不可达"
+        });
       }
-      img.referrerPolicy = "no-referrer";
-      img.onload = function () {
-        finish(true);
-      };
-      img.onerror = function () {
-        finish(false);
-      };
-      img.src = "https://" + host + "/favicon.ico?_=" + Date.now();
+      fetch(url, {
+        cache: "no-store",
+        mode: site.mode || "no-cors",
+        referrerPolicy: "no-referrer",
+        signal: controller.signal
+      })
+        .then(function () {
+          finish(true);
+        })
+        .catch(function () {
+          finish(false);
+        });
     });
   }
 
@@ -1154,10 +1174,10 @@
       };
     }
     var mainland = state.conn.groups.find(function (group) {
-      return group.title === "中国大陆";
+      return group.title === "境内站点";
     });
     var nonChinaGroups = state.conn.groups.filter(function (group) {
-      return group.title !== "中国大陆";
+      return group.title !== "境内站点";
     });
     var mainlandReachable = Boolean(
       mainland &&
@@ -1199,7 +1219,7 @@
   }
 
   function runMulti(ip) {
-    var target = String(ip || state.multiIp || "").trim();
+    var target = String(ip || state.multiIp || state.myIp || "").trim();
     state.multiSummary = "正在从多个数据源交叉查询…";
     state.multi = [
       "db-ip.com",
@@ -1668,6 +1688,16 @@
     );
   }
 
+  function renderSectionAction(label, action) {
+    return (
+      '<button class="section-action" type="button" data-action="' +
+      escapeHtml(action) +
+      '">' +
+      escapeHtml(label) +
+      "</button>"
+    );
+  }
+
   function renderRow(row) {
     var cls = "row" + (row.open ? " is-open" : "");
     var valueCls = "row-value" + (row.sensitive ? " sensitive" : "");
@@ -1767,16 +1797,14 @@
   }
 
   function renderConnSection() {
-    var action =
-      '<button class="button" type="button" data-action="run-conn">↻ 重新检测</button>';
     var groups = state.conn.groups.length
       ? state.conn.groups
-      : Object.keys(connTargets).map(function (title) {
+      : connTargets.map(function (group) {
           return {
-            title: title,
-            sites: connTargets[title].map(function (host) {
+            title: group.title,
+            sites: group.sites.map(function (site) {
               return {
-                host: host,
+                host: site.host,
                 code: "pending",
                 status: "检测中"
               };
@@ -1786,34 +1814,39 @@
     var verdict = networkVerdict();
     return (
       '<section class="section" id="sec-conn">' +
-      renderSectionHead("网络连通", "直连与分流轮廓", action) +
-      '<div class="panel"><div class="summary-line"><span class="table-source"><span class="dot ' +
+      renderSectionHead("网络连通", "是否大陆直连", renderSectionAction("↻ 重测", "run-conn")) +
+      '<div class="panel conn-panel"><div class="summary-line"><span class="table-source"><span class="dot ' +
       statusClass(verdict.status) +
       '"></span>' +
       escapeHtml(verdict.text) +
-      '</span></div><div class="data-grid">' +
+      "</span></div>" +
       groups
         .map(function (group) {
           return (
-            '<div class="data-cell"><div class="cell-label">' +
+            '<div class="conn-group"><div class="conn-group-title">' +
             escapeHtml(group.title) +
-            '</div><div class="cell-value">' +
+            '</div><div class="conn-grid">' +
             group.sites
               .map(function (site) {
+                var tone = site.code === "ok" ? "green" : site.code === "bad" ? "red" : "pending";
                 return (
-                  '<span class="table-source"><span class="dot ' +
-                  (site.code === "ok" ? "green" : site.code === "bad" ? "red" : "pending") +
-                  '"></span>' +
-                  escapeHtml(site.host + " · " + site.status) +
-                  "</span>"
+                  '<div class="conn-card"><span class="dot ' +
+                  tone +
+                  '"></span><span class="conn-card-host">' +
+                  escapeHtml(site.host) +
+                  '</span><span class="conn-card-status ' +
+                  tone +
+                  '">' +
+                  escapeHtml(site.status) +
+                  "</span></div>"
                 );
               })
-              .join("<br>") +
+              .join("") +
             "</div></div>"
           );
         })
         .join("") +
-      "</div></div></section>"
+      '<p class="conn-note">向各站点发起一次 no-cors 请求，只判断能否连通，不读取内容、不带 referrer。claude.ai / chatgpt.com 没有跨源探针，标记为无法探测；“大陆直连”仅依据被墙组多数不可达与境内对照可达。</p></div></section>'
     );
   }
 
@@ -1845,7 +1878,7 @@
       '<div class="panel"><div class="table-tools"><input id="multi-ip" value="' +
       escapeHtml(state.multiIp || "") +
       '" placeholder="' +
-      escapeHtml(state.myIp ? state.myIp + "（本机当前 IP）" : "留空=你的出口 IP，或输入任意 IP") +
+      escapeHtml(state.myIp ? "本机当前IP：" + state.myIp + "（留空即查询）" : "本机当前IP 读取中，或输入任意 IP") +
       '" autocomplete="off" spellcheck="false"><button class="button" type="button" data-action="run-multi">查询</button></div><div class="summary-line">' +
       escapeHtml(state.multiSummary) +
       '</div><div class="table-wrap"><table class="data-table"><thead><tr><th>来源</th><th>地区</th><th>Geo</th><th>ASN</th><th>组织</th></tr></thead><tbody>' +
@@ -1889,17 +1922,19 @@
       renderSectionHead(
         "AI 路径",
         "访问 AI 站点时看到的 Cloudflare 出口",
-        '<button class="button" type="button" data-action="run-aipath">↻ 重新检测</button>'
+        renderSectionAction("↻ 重新检测", "run-aipath")
       ) +
-      '<div class="panel"><div class="path-list">' +
+      '<div class="panel"><div class="path-list ai-path-list">' +
       rows
         .map(function (row) {
           return (
-            '<div class="mini-row"><span class="dot ' +
+            '<div class="mini-row path-row"><span class="dot ' +
             statusClass(row.status) +
-            '"></span><span class="mini-title">' +
+            '"></span><span class="mini-title path-title"><span class="path-name">' +
             escapeHtml(row.name) +
-            '</span><span class="mini-value sensitive" title="' +
+            '</span><span class="path-sep">·</span><span class="path-host">' +
+            escapeHtml(row.host || "") +
+            '</span></span><span class="mini-value sensitive" title="' +
             escapeHtml(row.host) +
             '">' +
             escapeHtml(row.value) +
@@ -1927,21 +1962,24 @@
       renderSectionHead(
         "AI 状态",
         "服务故障排除",
-        '<button class="button" type="button" data-action="run-aistatus">↻ 重新检测</button>'
+        renderSectionAction("↻ 重新检测", "run-aistatus")
       ) +
       '<div class="panel"><div class="status-list">' +
       rows
         .map(function (row) {
+          var tone = statusClass(row.status);
           return (
-            '<a class="mini-row" href="' +
-            escapeHtml(row.page || "#") +
-            '" target="_blank" rel="noreferrer"><span class="dot ' +
-            statusClass(row.status) +
+            '<div class="mini-row status-row"><span class="dot ' +
+            tone +
             '"></span><span class="mini-title">' +
             escapeHtml(row.name) +
-            '</span><span class="mini-value">' +
+            '</span><a class="mini-value status-link ' +
+            tone +
+            '" href="' +
+            escapeHtml(row.page || "#") +
+            '" target="_blank" rel="noreferrer">' +
             escapeHtml(row.value) +
-            "</span></a>"
+            "</a></div>"
           );
         })
         .join("") +
@@ -1953,28 +1991,31 @@
     var rows = state.fp.length
       ? state.fp
       : [
-          { key: "User Agent", value: "检测中" },
-          { key: "平台", value: "检测中" },
+          { key: "UserAgent", value: "检测中" },
+          { key: "平台 Platform", value: "检测中" },
+          { key: "屏幕", value: "检测中" },
+          { key: "CPU 核心", value: "检测中" },
+          { key: "设备内存", value: "检测中" },
           { key: "语言", value: "检测中" },
           { key: "时区", value: "检测中" },
-          { key: "屏幕", value: "检测中" }
+          { key: "Canvas 指纹", value: "检测中" }
         ];
     return (
       '<section class="section" id="sec-fp">' +
       renderSectionHead("浏览器指纹", "本机可见环境") +
-      '<div class="panel"><div class="fingerprint-list">' +
+      '<div class="panel"><div class="fingerprint-grid">' +
       rows
         .map(function (row) {
           return (
-            '<div class="mini-row"><span class="dot pending"></span><span class="mini-title">' +
+            '<div class="fingerprint-cell"><div class="fingerprint-key">' +
             escapeHtml(row.key) +
-            '</span><span class="mini-value ' +
+            '</div><div class="fingerprint-value ' +
             (row.sensitive ? "sensitive" : "") +
             '" title="' +
             escapeHtml(row.value) +
             '">' +
             escapeHtml(row.value) +
-            "</span></div>"
+            "</div></div>"
           );
         })
         .join("") +
@@ -1987,7 +2028,7 @@
     return (
       '<section class="section" id="sec-trace">' +
       renderSectionHead("路由追踪", "本机命令复核") +
-      '<div class="panel"><div class="trace-tabs">' +
+      '<div class="panel trace-panel"><p class="trace-intro">浏览器无法执行 traceroute（需 ICMP / 原始套接字，JS 一律被禁）。在本机终端先按需安装，再运行追踪；<code>mtr</code> 需 <code>sudo</code>。看路径中是否出现归属中国（CN）、或 ASN 为电信 AS4134 / 联通 AS4837 / 移动 AS9808 的跳。</p><div class="trace-tabs">' +
       traceTabs
         .map(function (tab, index) {
           return (
@@ -2001,23 +2042,26 @@
           );
         })
         .join("") +
-      "</div>" +
+      '</div><div class="trace-command-grid">' +
       active.commands
         .map(function (command) {
+          var copied = state.copied === command[1];
           return (
-            '<div class="command-row"><span class="command-label">' +
+            '<div class="trace-command-card"><div class="trace-command-head"><span class="command-label">' +
             escapeHtml(command[0]) +
-            '</span><code class="command-code">' +
-            escapeHtml(command[1]) +
-            '</code><button class="copy-button" type="button" data-copy="' +
+            '</span><button class="copy-button ' +
+            (copied ? "is-copied" : "") +
+            '" type="button" data-copy="' +
             escapeHtml(command[1]) +
             '">' +
-            (state.copied === command[1] ? "已复制" : "复制") +
-            "</button></div>"
+            (copied ? "✓ 已复制" : "复制") +
+            '</button></div><code class="command-code">' +
+            escapeHtml(command[1]) +
+            "</code></div>"
           );
         })
         .join("") +
-      '<div class="empty-note">路由追踪不会自动上传结果。它用于确认请求是否经过本地运营商、代理节点或异常中转。</div></div></section>'
+      '</div><div class="trace-note">若结果全是 <code>* * *</code> 或 claude.ai 解析成 <code>198.18.x.x</code> / <code>240.x</code>，说明走的是代理 Fake-IP 隧道，本机看不到真实路径。这通常是好事。</div></div></section>'
     );
   }
 
@@ -2103,7 +2147,7 @@
       window.setTimeout(function () {
         state.copied = "";
         render();
-      }, 1400);
+      }, 1500);
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(function () {
@@ -2131,11 +2175,22 @@
   }
 
   function updateActiveNav() {
-    var current = state.activeId;
-    for (var i = 0; i < NAV.length; i += 1) {
-      var el = document.getElementById(NAV[i][0]);
-      if (el && el.getBoundingClientRect().top <= 120) {
-        current = NAV[i][0];
+    var doc = document.documentElement;
+    var atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 2;
+    var current = NAV[0][0];
+    if (atBottom) {
+      current = NAV[NAV.length - 1][0];
+    } else {
+      var trigger = Math.max(120, window.innerHeight * 0.33);
+      for (var i = 0; i < NAV.length; i += 1) {
+        var el = document.getElementById(NAV[i][0]);
+        if (!el) {
+          continue;
+        }
+        var rect = el.getBoundingClientRect();
+        if (rect.top <= trigger && rect.bottom > 80) {
+          current = NAV[i][0];
+        }
       }
     }
     if (state.activeId !== current) {

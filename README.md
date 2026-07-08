@@ -1,6 +1,6 @@
-# SignalGuard
+# AI Signal Guard
 
-SignalGuard 是一个纯静态的浏览器端 AI 身份与网络信号自查工具。
+AI Signal Guard 是一个纯静态的浏览器端 AI 身份与网络信号自查工具。
 
 访问地址：
 
