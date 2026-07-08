@@ -23,6 +23,15 @@
     pending: "#b7b7af"
   };
 
+  var SCORE_SEGMENTS = [
+    { id: "ip", label: "IP", name: "出口 IP", weight: 35 },
+    { id: "identity", label: "身份", name: "身份信号", weight: 18 },
+    { id: "leak", label: "泄漏", name: "网络泄漏", weight: 27 },
+    { id: "conn", label: "直连", name: "大陆直连探针", weight: 20 },
+    { id: "ai", label: "路径", name: "AI 路径出口", weight: 15 },
+    { id: "multi", label: "互证", name: "多源交叉", weight: 8 }
+  ];
+
   var state = {
     region: "cn",
     privacy: false,
@@ -1953,6 +1962,227 @@
     return "red";
   }
 
+  function scoreSegmentData() {
+    var ip = state.rows.ip || {};
+    var lang = state.rows.lang || {};
+    var tz = state.rows.tz || {};
+    var emoji = state.rows.emoji || {};
+    var font = state.rows.font || {};
+    var webrtc = state.rows.webrtc || {};
+    var dns = state.rows.dns || {};
+    var consistency = state.rows.consistency || {};
+    var verdict = networkVerdict();
+    var hasRows = Object.keys(state.rows).length > 0;
+    var ipPenalty = ip.isCN ? 35 : ip.host ? 22 : ip.status === "amber" && !ip.country ? 8 : 0;
+    var identityPenalty =
+      (consistency.flag ? 8 : 0) +
+      (lang.status === "amber" ? 4 : 0) +
+      (tz.status === "amber" ? 4 : 0) +
+      (emoji.status === "amber" ? 1 : 0) +
+      (font.status === "amber" ? 1 : 0);
+    var leakPenalty = (state.dns.cnHit ? 15 : 0) + (webrtc.flag ? 12 : 0);
+    var connPenalty = verdict.result === true ? 20 : 0;
+    var aiPenalty = state.aipath.some(function (item) {
+      return item.status === "red";
+    })
+      ? 15
+      : 0;
+    var multiMismatch = state.multi.some(function (item) {
+      return item.mismatch;
+    });
+    var multiPenalty = multiMismatch ? 4 : 0;
+    var aiPending =
+      !state.aipath.length ||
+      state.aipath.some(function (item) {
+        return item.status === "pending";
+      });
+    return [
+      {
+        id: "ip",
+        label: "IP",
+        name: "出口 IP",
+        max: 35,
+        penalty: ipPenalty,
+        status: !hasRows || ip.status === "pending" ? "pending" : ipPenalty >= 35 ? "red" : ipPenalty ? "amber" : "green",
+        detail: rowShareStatus("ip")
+      },
+      {
+        id: "identity",
+        label: "身份",
+        name: "身份信号",
+        max: 18,
+        penalty: identityPenalty,
+        status:
+          !hasRows || [lang, tz, emoji, font].some(function (row) {
+            return row.status === "pending";
+          })
+            ? "pending"
+            : consistency.flag
+              ? "red"
+              : identityPenalty
+                ? "amber"
+                : "green",
+        detail:
+          "语言 " +
+          (lang.value || "检测中") +
+          " · 时区 " +
+          (tz.value || "检测中") +
+          " · 一致性 " +
+          (consistency.value || "检测中")
+      },
+      {
+        id: "leak",
+        label: "泄漏",
+        name: "网络泄漏",
+        max: 27,
+        penalty: leakPenalty,
+        status:
+          dns.status === "pending" || webrtc.status === "pending"
+            ? "pending"
+            : leakPenalty
+              ? "red"
+              : "green",
+        detail: "DNS：" + rowShareStatus("dns") + "；WebRTC：" + rowShareStatus("webrtc")
+      },
+      {
+        id: "conn",
+        label: "直连",
+        name: "大陆直连探针",
+        max: 20,
+        penalty: connPenalty,
+        status: verdict.status,
+        detail: networkShareStatus() + "。此项只看网络路径特征，不使用 AI 平台服务稳定性。"
+      },
+      {
+        id: "ai",
+        label: "路径",
+        name: "AI 路径出口",
+        max: 15,
+        penalty: aiPenalty,
+        status: aiPending ? "pending" : aiPenalty ? "red" : "green",
+        detail: aiPathShareStatus()
+      },
+      {
+        id: "multi",
+        label: "互证",
+        name: "多源交叉",
+        max: 8,
+        penalty: multiPenalty,
+        status: !state.multi.length ? "pending" : multiPenalty ? "amber" : "green",
+        detail: state.multiSummary
+      }
+    ];
+  }
+
+  function segmentStatusText(segment) {
+    if (segment.status === "red") {
+      return "高风险";
+    }
+    if (segment.status === "amber") {
+      return "需留意";
+    }
+    if (segment.status === "green") {
+      return "正常";
+    }
+    return "检测中";
+  }
+
+  function renderScoreRingSegments(segments) {
+    var totalWeight = SCORE_SEGMENTS.reduce(function (sum, item) {
+      return sum + item.weight;
+    }, 0);
+    var gap = 7.2;
+    var usable = RING_CIRCUMFERENCE - gap * SCORE_SEGMENTS.length;
+    var cursor = 0;
+    var tracks = [];
+    var arcs = [];
+    SCORE_SEGMENTS.forEach(function (meta, index) {
+      var segment = segments[index];
+      var length = usable * (meta.weight / totalWeight);
+      var dash = Math.max(0, length).toFixed(3) + " " + RING_CIRCUMFERENCE.toFixed(3);
+      var offset = (-cursor).toFixed(3);
+      var title =
+        segment.name +
+        "：" +
+        segmentStatusText(segment) +
+        "，扣 " +
+        segment.penalty +
+        "/" +
+        segment.max +
+        " 分";
+      tracks.push(
+        '<circle class="score-track score-track-segment" cx="60" cy="60" r="52" stroke-dasharray="' +
+          dash +
+          '" stroke-dashoffset="' +
+          offset +
+          '"></circle>'
+      );
+      arcs.push(
+        '<circle class="score-segment score-segment-' +
+          statusClass(segment.status) +
+          '" cx="60" cy="60" r="52" stroke-dasharray="' +
+          dash +
+          '" stroke-dashoffset="' +
+          offset +
+          '">' +
+          "<title>" +
+          escapeHtml(title) +
+          "</title></circle>"
+      );
+      cursor += length + gap;
+    });
+    return tracks.join("") + arcs.join("");
+  }
+
+  function renderScoreSegmentHotspots(segments) {
+    var totalWeight = SCORE_SEGMENTS.reduce(function (sum, item) {
+      return sum + item.weight;
+    }, 0);
+    var gap = 7.2;
+    var usable = RING_CIRCUMFERENCE - gap * SCORE_SEGMENTS.length;
+    var cursor = 0;
+    return SCORE_SEGMENTS.map(function (meta, index) {
+      var segment = segments[index];
+      var length = usable * (meta.weight / totalWeight);
+      var midRatio = (cursor + length / 2) / RING_CIRCUMFERENCE;
+      var angle = -90 + midRatio * 360;
+      var rad = (angle * Math.PI) / 180;
+      var radius = 96;
+      var x = 90 + Math.cos(rad) * radius;
+      var y = 90 + Math.sin(rad) * radius;
+      var side = y > 92 ? "is-bottom" : "is-top";
+      var horizontal = x > 118 ? "is-right" : x < 62 ? "is-left" : "is-center";
+      cursor += length + gap;
+      return (
+        '<button class="score-metric score-metric-' +
+        statusClass(segment.status) +
+        " " +
+        side +
+        " " +
+        horizontal +
+        '" type="button" style="left:' +
+        x.toFixed(1) +
+        "px;top:" +
+        y.toFixed(1) +
+        'px" aria-label="' +
+        escapeHtml(segment.name + "：" + segmentStatusText(segment) + "，扣 " + segment.penalty + "/" + segment.max + " 分") +
+        '">' +
+        '<span class="score-metric-label">' +
+        escapeHtml(segment.label) +
+        "</span>" +
+        '<span class="score-metric-tip" role="tooltip"><strong>' +
+        escapeHtml(segment.name) +
+        "</strong><span>状态：" +
+        escapeHtml(segmentStatusText(segment)) +
+        " · 扣分 " +
+        escapeHtml(segment.penalty + "/" + segment.max) +
+        "</span><em>" +
+        highlightRiskText(segment.detail || "等待检测结果") +
+        "</em></span></button>"
+      );
+    }).join("");
+  }
+
   function collectRiskFlags() {
     var flags = [];
     var ip = state.rows.ip || {};
@@ -2134,6 +2364,7 @@
     renderTopbar();
     renderScore();
     renderSections();
+    bindScoreMetricEvents();
     bindDynamicEvents();
   }
 
@@ -2164,12 +2395,12 @@
     state.displayScore = state.score;
     var key = scoreKey(state.score);
     var value = Object.keys(state.rows).length ? state.displayScore : "··";
+    var segments = scoreSegmentData();
     $("#score-number").textContent = value;
     $("#score-status").textContent = Object.keys(state.rows).length ? statusText[key] : "检测中";
     $("#score-status").style.color = COLORS[key];
-    $("#score-ring").style.stroke = COLORS[key];
-    $("#score-ring").style.strokeDashoffset =
-      RING_CIRCUMFERENCE * (1 - (Object.keys(state.rows).length ? state.displayScore : 0) / 100);
+    $("#score-ring").innerHTML = renderScoreRingSegments(segments);
+    $("#score-segment-hotspots").innerHTML = renderScoreSegmentHotspots(segments);
     $("#score-summary").innerHTML = highlightRiskText(summaryText());
     var copySummary = $("#copy-summary");
     if (copySummary) {
@@ -2186,6 +2417,38 @@
         copyLabel.textContent = copyTextLabel;
       }
     }
+  }
+
+  function setActiveScoreMetric(button) {
+    document.querySelectorAll(".score-metric.is-active").forEach(function (metric) {
+      if (metric !== button) {
+        metric.classList.remove("is-active");
+      }
+    });
+    if (button) {
+      button.classList.add("is-active");
+    }
+  }
+
+  function bindScoreMetricEvents() {
+    document.querySelectorAll(".score-metric").forEach(function (button) {
+      button.addEventListener("mouseenter", function () {
+        setActiveScoreMetric(button);
+      });
+      button.addEventListener("focus", function () {
+        setActiveScoreMetric(button);
+      });
+      button.addEventListener("mouseleave", function () {
+        button.classList.remove("is-active");
+      });
+      button.addEventListener("blur", function () {
+        button.classList.remove("is-active");
+      });
+      button.addEventListener("click", function (event) {
+        event.stopPropagation();
+        setActiveScoreMetric(button);
+      });
+    });
   }
 
   function renderSections() {
@@ -2682,6 +2945,11 @@
     $("#run-all").addEventListener("click", runAll);
     $("#copy-summary").addEventListener("click", function () {
       copyText(diagnosticSummaryText(), "diagnostic-summary");
+    });
+    document.addEventListener("click", function (event) {
+      if (!event.target.closest(".score-metric")) {
+        setActiveScoreMetric(null);
+      }
     });
     document.querySelectorAll("[data-region]").forEach(function (button) {
       button.addEventListener("click", function () {
