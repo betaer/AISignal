@@ -1882,7 +1882,13 @@
 
   function renderRowBody(row) {
     return (
-      '<div class="row-body"><p class="row-detail">' +
+      '<div class="row-body"><div class="row-result"><span class="dot ' +
+      statusClass(row.status) +
+      '"></span><span class="row-result-label">检测结果</span><strong class="row-result-value ' +
+      (row.sensitive ? "sensitive" : "") +
+      '">' +
+      escapeHtml(row.value || "暂无结果") +
+      '</strong></div><p class="row-detail">' +
       escapeHtml(row.detail || "暂无详细信息") +
       "</p>" +
       (row.advice
