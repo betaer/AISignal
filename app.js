@@ -328,6 +328,74 @@
     };
   }
 
+  function pendingConnGroups() {
+    return connTargets.map(function (group) {
+      return {
+        title: group.title,
+        sites: group.sites.map(function (site) {
+          return {
+            host: site.host,
+            code: "pending",
+            status: "等待检测"
+          };
+        })
+      };
+    });
+  }
+
+  function isCurrentRun(runId) {
+    return runId === state.runId;
+  }
+
+  function staleRunError() {
+    var err = new Error("stale run");
+    err.stale = true;
+    return err;
+  }
+
+  function rowReady(id) {
+    return Boolean(state.rows[id] && state.rows[id].status !== "pending");
+  }
+
+  function connReady() {
+    return Boolean(
+      state.conn.groups.length &&
+        !state.conn.running &&
+        state.conn.groups.every(function (group) {
+          return group.sites.every(function (site) {
+            return site.code !== "pending";
+          });
+        })
+    );
+  }
+
+  function aiPathReady() {
+    return Boolean(
+      state.aipath.length &&
+        state.aipath.every(function (item) {
+          return item.status !== "pending";
+        })
+    );
+  }
+
+  function multiReady() {
+    if (!state.multi.length) {
+      return rowReady("ip") && !state.myIp;
+    }
+    return state.multi.every(function (item) {
+      return item.country !== "…" && item.geo !== "查询中";
+    });
+  }
+
+  function scoreReady() {
+    return (
+      ["ip", "consistency", "lang", "tz", "emoji", "font", "webrtc", "dns"].every(rowReady) &&
+      connReady() &&
+      aiPathReady() &&
+      multiReady()
+    );
+  }
+
   function isChinaCountry(code) {
     var cc = String(code || "").toUpperCase();
     if (state.region === "cnhk") {
@@ -893,6 +961,7 @@
   }
 
   function runIP() {
+    var runId = state.runId;
     state.myIp = "";
     state.exitIps = [];
     setRow("ip", {
@@ -956,13 +1025,16 @@
       }
       multiStarted = true;
       scheduleIdle(function () {
-        if (!state.multi.length) {
+        if (isCurrentRun(runId) && !state.multi.length) {
           runMulti(ip);
         }
       }, 2600);
     }
 
     function applyIpResults(results) {
+      if (!isCurrentRun(runId)) {
+        return false;
+      }
       var ipResults = uniqueIpResults(results);
       var result = ipResults[0] || results[0];
       if (!result || !result.ok || !result.ip) {
@@ -1031,6 +1103,9 @@
     });
 
     firstResolvedResult(probes).then(function (result) {
+      if (!isCurrentRun(runId)) {
+        return;
+      }
       if (result) {
         applyIpResults([result]);
       }
@@ -1038,6 +1113,9 @@
 
     Promise.all(probes)
       .then(function (results) {
+        if (!isCurrentRun(runId)) {
+          return;
+        }
         var successful = results.filter(function (result) {
           return result && result.ok;
         });
@@ -1046,6 +1124,11 @@
         }
       })
       .catch(function () {
+        if (!isCurrentRun(runId)) {
+          return;
+        }
+        state.multiSummary = "出口 IP 未测出，无法自动交叉核对。可手动输入 IP 查询。";
+        state.multi = [];
         setRow("ip", {
           status: "amber",
           value: "无法读取出口 IP",
@@ -1185,6 +1268,7 @@
   }
 
   function runWebRTC() {
+    var runId = state.runId;
     setRow("webrtc", {
       status: "pending",
       value: "检测中…",
@@ -1232,6 +1316,12 @@
     }
 
     window.setTimeout(function () {
+      if (!isCurrentRun(runId)) {
+        try {
+          pc.close();
+        } catch (err) {}
+        return;
+      }
       try {
         pc.close();
       } catch (err) {}
@@ -1323,6 +1413,7 @@
     if (state.dns.running) {
       return;
     }
+    var runId = state.runId;
     var deep = mode === "deep";
     state.dns = {
       done: false,
@@ -1337,6 +1428,9 @@
     });
     getText("https://bash.ws/id", 8000)
       .then(function (id) {
+        if (!isCurrentRun(runId)) {
+          throw staleRunError();
+        }
         id = String(id || "").trim();
         if (!/^[a-z0-9]{6,}$/i.test(id)) {
           throw new Error("bad id");
@@ -1355,6 +1449,9 @@
           });
       })
       .then(function (data) {
+        if (!isCurrentRun(runId)) {
+          return;
+        }
         if (!Array.isArray(data)) {
           throw new Error("bad result");
         }
@@ -1419,6 +1516,9 @@
         });
       })
       .catch(function (err) {
+        if ((err && err.stale) || !isCurrentRun(runId)) {
+          return;
+        }
         state.dns = {
           done: true,
           running: false,
@@ -1480,6 +1580,7 @@
   }
 
   function runConn() {
+    var runId = state.runId;
     state.conn = {
       running: true,
       groups: connTargets.map(function (group) {
@@ -1499,7 +1600,7 @@
     connTargets.forEach(function (group) {
       group.sites.forEach(function (site) {
         probeHost(site).then(function (result) {
-          updateConnHost(site.host, result.code, result.status);
+          updateConnHost(site.host, result.code, result.status, runId);
         });
       });
     });
@@ -1565,7 +1666,10 @@
     return url + (url.indexOf("?") === -1 ? "?" : "&") + "_=" + Date.now();
   }
 
-  function updateConnHost(host, code, label) {
+  function updateConnHost(host, code, label, runId) {
+    if (runId && !isCurrentRun(runId)) {
+      return;
+    }
     state.conn.groups.forEach(function (group) {
       group.sites.forEach(function (site) {
         if (site.host === host) {
@@ -1638,6 +1742,7 @@
   }
 
   function runMulti(ip) {
+    var runId = state.runId;
     var target = String(ip || state.multiIp || state.myIp || "").trim();
     state.multiSummary = "正在从多个数据源交叉查询…";
     state.multi = [
@@ -1728,9 +1833,15 @@
       }
       getJson(task.url, 8500)
         .then(function (payload) {
+          if (!isCurrentRun(runId)) {
+            throw staleRunError();
+          }
           return normalizeIpPayload(payload, task.source);
         })
         .then(function (result) {
+          if (!isCurrentRun(runId)) {
+            return;
+          }
           state.multi[index] = result || {
             source: task.source,
             country: "无结果",
@@ -1743,6 +1854,9 @@
           render();
         })
         .catch(function () {
+          if (!isCurrentRun(runId)) {
+            return;
+          }
           state.multi[index] = {
             source: task.source,
             country: "无法读取",
@@ -1763,6 +1877,7 @@
     });
     if (!ok.length) {
       state.multiSummary = "暂未拿到可用结果，可能是接口限流或跨源限制。";
+      recompute();
       return;
     }
     var geoOk = ok.filter(function (item) {
@@ -1777,6 +1892,7 @@
       state.multiSummary =
         ok.length +
         " 个数据源返回结果，但都没有给出可用于地理交叉的地区字段；ASN / 组织信息仅作参考。";
+      recompute();
       return;
     }
     var countries = {};
@@ -1806,9 +1922,11 @@
       " 个可用于地理交叉；主流判定为 " +
       main +
       (mismatch ? "，其中 " + mismatch + " 个来源与主流结果不一致。" : "，未发现明显地理冲突。");
+    recompute();
   }
 
   function runAipath() {
+    var runId = state.runId;
     state.aipath = aiTargets.map(function (target) {
       return {
         name: target.name,
@@ -1821,6 +1939,9 @@
     aiTargets.forEach(function (target, index) {
       getText("https://" + target.host + "/cdn-cgi/trace?_=" + Date.now(), 8000)
         .then(function (text) {
+          if (!isCurrentRun(runId)) {
+            return;
+          }
           var trace = parseCloudflareTrace(text);
           var cc = String(trace.loc || "").toUpperCase();
           var cn = isChinaCountry(cc);
@@ -1836,12 +1957,16 @@
           render();
         })
         .catch(function () {
+          if (!isCurrentRun(runId)) {
+            return;
+          }
           state.aipath[index] = {
             name: target.name,
             host: target.host,
             value: "无法读取（跨源 / 限流）",
-            status: "pending"
+            status: "amber"
           };
+          recompute();
           render();
         });
     });
@@ -1860,6 +1985,7 @@
   }
 
   function runAiStatus() {
+    var runId = state.runId;
     state.aistatus = statusTargets.map(function (target) {
       return {
         name: target.name,
@@ -1879,6 +2005,9 @@
     statusTargets.forEach(function (target, index) {
       getJson(target.url, 8000)
         .then(function (json) {
+          if (!isCurrentRun(runId)) {
+            return;
+          }
           var indicator = json.status && json.status.indicator;
           var mapped = statusMap[indicator] || ["pending", indicator || "未知"];
           state.aistatus[index] = {
@@ -1890,6 +2019,9 @@
           render();
         })
         .catch(function () {
+          if (!isCurrentRun(runId)) {
+            return;
+          }
           state.aistatus[index] = {
             name: target.name,
             page: target.page,
@@ -1914,6 +2046,9 @@
     var aipCN = state.aipath.some(function (item) {
       return item.status === "red";
     });
+    var multiMismatch = state.multi.some(function (item) {
+      return item.mismatch;
+    });
 
     if (ip.isCN) {
       score -= 35;
@@ -1933,6 +2068,9 @@
     }
     if (aipCN) {
       score -= 15;
+    }
+    if (multiMismatch) {
+      score -= 4;
     }
     if (consistency.flag) {
       score -= 8;
@@ -1991,11 +2129,15 @@
       return item.mismatch;
     });
     var multiPenalty = multiMismatch ? 4 : 0;
+    var multiUnavailable = !state.multi.length && rowReady("ip") && !state.myIp;
     var aiPending =
       !state.aipath.length ||
       state.aipath.some(function (item) {
         return item.status === "pending";
       });
+    var aiAmber = state.aipath.some(function (item) {
+      return item.status === "amber";
+    });
     return [
       {
         id: "ip",
@@ -2059,7 +2201,7 @@
         name: "AI 路径出口",
         max: 15,
         penalty: aiPenalty,
-        status: aiPending ? "pending" : aiPenalty ? "red" : "green",
+        status: aiPending ? "pending" : aiPenalty ? "red" : aiAmber ? "amber" : "green",
         detail: aiPathShareStatus()
       },
       {
@@ -2068,7 +2210,7 @@
         name: "多源交叉",
         max: 8,
         penalty: multiPenalty,
-        status: !state.multi.length ? "pending" : multiPenalty ? "amber" : "green",
+        status: !state.multi.length ? (multiUnavailable ? "amber" : "pending") : multiPenalty ? "amber" : "green",
         detail: state.multiSummary
       }
     ];
@@ -2243,6 +2385,13 @@
     ) {
       flags.push("AI 路径出口在中国");
     }
+    if (
+      state.multi.some(function (item) {
+        return item.mismatch;
+      })
+    ) {
+      flags.push("多源 IP 情报冲突");
+    }
     return flags;
   }
 
@@ -2250,6 +2399,11 @@
     var flags = collectRiskFlags();
     if (!Object.keys(state.rows).length) {
       return "正在运行本地与联网检测…";
+    }
+    if (!scoreReady()) {
+      return flags.length
+        ? "检测仍在继续，已发现 " + flags.length + " 项风险信号：" + flags.slice(0, 3).join(" · ") + "。"
+        : "正在完成 DNS、WebRTC、网络连通、AI 路径和多源交叉检测。";
     }
     if (!flags.length) {
       return "未发现明显暴露信号，各项信号与出口 IP 基本一致。这是较理想的状态。";
@@ -2332,12 +2486,19 @@
     ) {
       return "检测中";
     }
+    if (
+      state.aipath.some(function (item) {
+        return item.status === "amber";
+      })
+    ) {
+      return "一般 · AI 路径部分无法读取";
+    }
     return "可信 · AI 路径未见中国出口";
   }
 
   function diagnosticSummaryText() {
-    var hasRows = Object.keys(state.rows).length > 0;
-    var scoreText = hasRows ? state.score + "/100（" + statusText[scoreKey(state.score)] + "）" : "检测中";
+    var ready = scoreReady();
+    var scoreText = ready ? state.score + "/100（" + statusText[scoreKey(state.score)] + "）" : "检测中";
     var flags = collectRiskFlags();
     return [
       "AI Signal Guard 诊断摘要",
@@ -2415,14 +2576,15 @@
   }
 
   function renderScore() {
+    var ready = scoreReady();
     state.displayScore = state.score;
     var key = scoreKey(state.score);
-    var value = Object.keys(state.rows).length ? state.displayScore : "··";
+    var value = ready ? state.displayScore : "··";
     var segments = scoreSegmentData();
     $("#score-number").textContent = value;
-    $("#score-status").textContent = Object.keys(state.rows).length ? statusText[key] : "检测中";
-    $("#score-status").style.color = COLORS[key];
-    $("#score-ring").innerHTML = renderScoreRingSegments(segments, state.score, Object.keys(state.rows).length > 0);
+    $("#score-status").textContent = ready ? statusText[key] : "检测中";
+    $("#score-status").style.color = ready ? COLORS[key] : COLORS.pending;
+    $("#score-ring").innerHTML = renderScoreRingSegments(segments, state.score, ready);
     $("#score-segment-hotspots").innerHTML = renderScoreSegmentHotspots(segments);
     $("#score-summary").innerHTML = highlightRiskText(summaryText());
     var copySummary = $("#copy-summary");
@@ -3208,8 +3370,27 @@
     var runId = state.runId;
     setPendingRows();
     state.multi = [];
-    state.aipath = [];
-    state.aistatus = [];
+    state.multiSummary = "等待出口 IP 后自动交叉核对…";
+    state.conn = {
+      running: true,
+      groups: pendingConnGroups()
+    };
+    state.aipath = aiTargets.map(function (target) {
+      return {
+        name: target.name,
+        host: target.host,
+        value: "等待检测…",
+        status: "pending"
+      };
+    });
+    state.aistatus = statusTargets.map(function (target) {
+      return {
+        name: target.name,
+        page: target.page,
+        value: "等待读取…",
+        status: "pending"
+      };
+    });
     state.fp = [];
     state.myIp = "";
     state.exitIps = [];
