@@ -1061,6 +1061,58 @@ input:focus-visible {
   line-height: 1.75;
 }
 
+.trace-note strong {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.trace-note p {
+  margin: 0;
+}
+
+.trace-range-wrap {
+  overflow-x: auto;
+  margin-top: 14px;
+  border: 1px solid #f0f0ed;
+  border-radius: 10px;
+}
+
+.trace-range-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.trace-range-table th,
+.trace-range-table td {
+  border-top: 1px solid #f0f0ed;
+  padding: 9px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.trace-range-table th {
+  border-top: 0;
+  color: var(--muted-2);
+  font: 10px/1.3 var(--mono);
+  letter-spacing: 0.08em;
+}
+
+.trace-range-table td {
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.trace-range-table td:first-child {
+  width: 150px;
+  white-space: nowrap;
+}
+
 .site-footer {
   position: relative;
   z-index: 1;

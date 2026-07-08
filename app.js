@@ -167,6 +167,17 @@
     }
   ];
 
+  var traceFakeIpRanges = [
+    ["198.18.0.0/15", "最常见 Fake-IP，代理会把域名映射到这个测试网段"],
+    ["198.19.0.0/16", "198.18 扩展，用于更大的 Fake-IP 池"],
+    ["240.0.0.0/4", "保留 / 实验地址，部分代理作为 Fake-IP 使用"],
+    ["192.0.0.0/24", "特殊用途地址，不应当当作真实公网出口"],
+    ["100.64.0.0/10", "CGNAT 共享地址，常见于运营商或中转网络"],
+    ["10.0.0.0/8", "私网地址，只代表本地网络、容器、网关或隧道内部"],
+    ["172.16.0.0/12", "私网地址，只代表本地网络、容器、网关或隧道内部"],
+    ["192.168.0.0/16", "私网地址，只代表本地网络、家庭路由或隧道内部"]
+  ];
+
   function $(selector) {
     return document.querySelector(selector);
   }
@@ -2025,6 +2036,17 @@
 
   function renderTraceSection() {
     var active = traceTabs[state.traceTab] || traceTabs[0];
+    var fakeIpRows = traceFakeIpRanges
+      .map(function (row) {
+        return (
+          "<tr><td><code>" +
+          escapeHtml(row[0]) +
+          "</code></td><td>" +
+          escapeHtml(row[1]) +
+          "</td></tr>"
+        );
+      })
+      .join("");
     return (
       '<section class="section" id="sec-trace">' +
       renderSectionHead("路由追踪", "本机命令复核") +
@@ -2061,7 +2083,9 @@
           );
         })
         .join("") +
-      '</div><div class="trace-note">若结果全是 <code>* * *</code> 或 claude.ai 解析成 <code>198.18.x.x</code> / <code>240.x</code>，说明走的是代理 Fake-IP 隧道，本机看不到真实路径。这通常是好事。</div></div></section>'
+      '</div><div class="trace-note"><strong>Fake-IP / 内网地址兼容判断</strong><p>若结果全是 <code>* * *</code>，或 claude.ai 解析 / 跳点落在下方网段，通常说明请求走的是代理 Fake-IP、CGNAT、私网网关或本地隧道，本机看不到真实公网路径。此时不要把这些地址当成真实出口；继续关注后续是否出现中国（CN）归属，或电信 AS4134 / 联通 AS4837 / 移动 AS9808。</p><div class="trace-range-wrap"><table class="trace-range-table"><thead><tr><th>网段</th><th>用途 / 含义</th></tr></thead><tbody>' +
+      fakeIpRows +
+      "</tbody></table></div></div></div></section>"
     );
   }
 
