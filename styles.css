@@ -152,7 +152,7 @@ input:focus-visible {
 
 .brand-lockup {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 9px;
   min-width: 0;
 }
@@ -179,12 +179,14 @@ input:focus-visible {
 }
 
 .brand-text {
+  display: block;
   flex: none;
   font: 650 14px/1 var(--mono);
   letter-spacing: -0.01em;
 }
 
 .brand-sub {
+  display: block;
   overflow: hidden;
   color: var(--muted-2);
   font: 11px/1 var(--mono);
