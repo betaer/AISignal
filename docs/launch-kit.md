@@ -150,7 +150,7 @@ GitHub：https://github.com/betaer/AISignal
 7-11s：展开 DNS / WebRTC，展示泄漏检测。
 11-15s：跳到 AI 路径和 AI 状态，展示访问排障。
 15-18s：开启隐私模式，敏感字段模糊。
-18-20s：点击复制诊断摘要或分享结果图，切到 GitHub 仓库。
+18-20s：点击右下角复制摘要，切到 GitHub 仓库。
 ```
 
 ## 发布顺序

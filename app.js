@@ -1831,283 +1831,6 @@
     return state.region === "cnhk" ? "含港澳" : "仅中国大陆";
   }
 
-  function cardToneColor(key) {
-    if (key === "green") return "#4d9562";
-    if (key === "amber") return "#bd8628";
-    if (key === "red") return "#bd4a35";
-    return "#b7b7af";
-  }
-
-  function makeDiagnosticCardCanvas() {
-    var width = 1200;
-    var height = 630;
-    var scale = 2;
-    var canvas = document.createElement("canvas");
-    var ctx = canvas.getContext("2d");
-    var hasRows = Object.keys(state.rows).length > 0;
-    var score = hasRows ? state.score : 0;
-    var key = hasRows ? scoreKey(score) : "pending";
-    var tone = cardToneColor(key);
-    var flags = collectRiskFlags();
-    var riskText = flags.length ? flags.slice(0, 3).join(" / ") : "未发现明显暴露信号";
-    if (flags.length > 3) {
-      riskText += " 等";
-    }
-
-    canvas.width = width * scale;
-    canvas.height = height * scale;
-    ctx.scale(scale, scale);
-
-    ctx.fillStyle = "#f7f7f5";
-    ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "rgba(26, 26, 24, 0.06)";
-    ctx.lineWidth = 1;
-    for (var gx = 80; gx < width; gx += 160) {
-      ctx.beginPath();
-      ctx.moveTo(gx, 0);
-      ctx.lineTo(gx, height);
-      ctx.stroke();
-    }
-    for (var gy = 90; gy < height; gy += 120) {
-      ctx.beginPath();
-      ctx.moveTo(0, gy);
-      ctx.lineTo(width, gy);
-      ctx.stroke();
-    }
-
-    ctx.fillStyle = "rgba(77, 149, 98, 0.11)";
-    ctx.beginPath();
-    ctx.arc(1030, 120, 150, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(189, 134, 40, 0.11)";
-    ctx.beginPath();
-    ctx.arc(1048, 530, 132, 0, Math.PI * 2);
-    ctx.fill();
-
-    fillRoundedRect(ctx, 72, 70, 1056, 490, 30, "#ffffff");
-    strokeRoundedRect(ctx, 72, 70, 1056, 490, 30, "#deded7", 1);
-    fillRoundedRect(ctx, 72, 70, 1056, 70, 30, "#f7f7f4");
-    ctx.fillStyle = "#d95745";
-    ctx.beginPath();
-    ctx.arc(114, 105, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#d4a94d";
-    ctx.beginPath();
-    ctx.arc(140, 105, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#6ca878";
-    ctx.beginPath();
-    ctx.arc(166, 105, 8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#8f8f87";
-    ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-    ctx.fillText("betaer.github.io/AISignal", 210, 112);
-
-    ctx.fillStyle = "#8f8f87";
-    ctx.font = "17px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-    ctx.fillText("CLIENT-SIDE AI SIGNAL CHECKER", 120, 205);
-    ctx.fillStyle = "#1a1a18";
-    ctx.font = "700 64px -apple-system, BlinkMacSystemFont, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif";
-    ctx.fillText("AI Signal Guard", 120, 275);
-    ctx.fillStyle = "#3f3f39";
-    ctx.font = "28px -apple-system, BlinkMacSystemFont, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif";
-    ctx.fillText("浏览器端 AI 账号网络与身份信号体检", 120, 326);
-    ctx.fillStyle = "#5c5c55";
-    ctx.font = "22px -apple-system, BlinkMacSystemFont, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif";
-    ctx.fillText("IP · DNS · WebRTC · AI Path · Fingerprint · Trust Score", 120, 370);
-
-    drawScoreDial(ctx, 910, 292, score, tone, hasRows ? statusText[key] : "检测中");
-
-    drawCardPill(ctx, 120, 420, 182, "风险项", flags.length ? flags.length + " 项" : "0 项", tone);
-    drawCardPill(ctx, 318, 420, 180, "判定口径", diagnosticRegionLabel(), "#8f8f87");
-    drawCardPill(ctx, 514, 420, 250, "WebRTC", rowShareStatus("webrtc"), "#8f8f87");
-    drawCardPill(ctx, 780, 420, 232, "DNS", rowShareStatus("dns"), "#8f8f87");
-
-    ctx.fillStyle = "#3f3f39";
-    ctx.font = "600 20px -apple-system, BlinkMacSystemFont, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif";
-    drawWrappedText(ctx, riskText, 120, 516, 620, 26, 2);
-    ctx.fillStyle = "#9a9a91";
-    ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-    ctx.fillText("脱敏结果图 · 不含 IP / DNS / 组织 / 指纹值", 120, 540);
-    ctx.fillText("https://github.com/betaer/AISignal", 826, 540);
-
-    return canvas;
-  }
-
-  function drawScoreDial(ctx, cx, cy, score, tone, label) {
-    var radius = 96;
-    ctx.lineWidth = 12;
-    ctx.strokeStyle = "#e7e7e2";
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = tone;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (score / 100));
-    ctx.stroke();
-    ctx.lineCap = "butt";
-    ctx.fillStyle = "#1a1a18";
-    ctx.font = "700 64px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-    ctx.textAlign = "center";
-    ctx.fillText(String(score), cx, cy + 10);
-    ctx.fillStyle = tone;
-    ctx.font = "700 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-    ctx.fillText(label.toUpperCase(), cx, cy + 52);
-    ctx.textAlign = "left";
-  }
-
-  function drawCardPill(ctx, x, y, width, label, value, tone) {
-    fillRoundedRect(ctx, x, y, width, 62, 12, "#ffffff");
-    strokeRoundedRect(ctx, x, y, width, 62, 12, "#deded7", 1);
-    ctx.fillStyle = "#a3a39b";
-    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-    ctx.fillText(label, x + 18, y + 23);
-    ctx.fillStyle = tone;
-    ctx.font = "600 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-    drawWrappedText(ctx, value, x + 18, y + 47, width - 36, 18, 1);
-  }
-
-  function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
-    var chars = Array.from(String(text || ""));
-    var lines = [];
-    var line = "";
-    chars.forEach(function (char) {
-      var next = line + char;
-      if (line && ctx.measureText(next).width > maxWidth) {
-        lines.push(line);
-        line = char;
-        return;
-      }
-      line = next;
-    });
-    if (line) {
-      lines.push(line);
-    }
-    if (maxLines && lines.length > maxLines) {
-      lines = lines.slice(0, maxLines);
-      var last = lines[lines.length - 1] || "";
-      while (last.length && ctx.measureText(last + "…").width > maxWidth) {
-        last = last.slice(0, -1);
-      }
-      lines[lines.length - 1] = last + "…";
-    }
-    lines.forEach(function (item, index) {
-      ctx.fillText(item, x, y + index * lineHeight);
-    });
-    return y + lines.length * lineHeight;
-  }
-
-  function roundedRectPath(ctx, x, y, width, height, radius) {
-    var r = Math.min(radius, width / 2, height / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + width - r, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-    ctx.lineTo(x + width, y + height - r);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-    ctx.lineTo(x + r, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
-
-  function fillRoundedRect(ctx, x, y, width, height, radius, fill) {
-    roundedRectPath(ctx, x, y, width, height, radius);
-    ctx.fillStyle = fill;
-    ctx.fill();
-  }
-
-  function strokeRoundedRect(ctx, x, y, width, height, radius, stroke, lineWidth) {
-    roundedRectPath(ctx, x, y, width, height, radius);
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = lineWidth || 1;
-    ctx.stroke();
-  }
-
-  function canvasToPngBlob(canvas) {
-    return new Promise(function (resolve, reject) {
-      if (canvas.toBlob) {
-        canvas.toBlob(function (blob) {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error("empty canvas blob"));
-          }
-        }, "image/png");
-        return;
-      }
-      try {
-        resolve(dataUrlToBlob(canvas.toDataURL("image/png")));
-      } catch (err) {
-        reject(err);
-      }
-    });
-  }
-
-  function dataUrlToBlob(dataUrl) {
-    var parts = dataUrl.split(",");
-    var meta = parts[0] || "";
-    var mimeMatch = meta.match(/data:([^;]+)/);
-    var mime = mimeMatch ? mimeMatch[1] : "image/png";
-    var binary = window.atob(parts[1] || "");
-    var bytes = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return new Blob([bytes], { type: mime });
-  }
-
-  function downloadBlob(blob, filename) {
-    var url = URL.createObjectURL(blob);
-    var link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.setTimeout(function () {
-      URL.revokeObjectURL(url);
-    }, 1000);
-  }
-
-  function shareDiagnosticCard() {
-    var canvas = makeDiagnosticCardCanvas();
-    state.copied = "share-card:working";
-    render();
-    canvasToPngBlob(canvas)
-      .then(function (blob) {
-        var filename = "ai-signal-guard-summary.png";
-        var file =
-          typeof File === "function" ? new File([blob], filename, { type: "image/png" }) : null;
-        var shareFiles = file ? { files: [file] } : null;
-        if (file && navigator.share && navigator.canShare && navigator.canShare(shareFiles)) {
-          var sharePromise = navigator.share({
-            files: [file],
-            title: "AI Signal Guard 诊断摘要",
-            text: "AI Signal Guard 脱敏诊断图",
-            url: "https://betaer.github.io/AISignal/"
-          });
-          flashCopiedState("share-card");
-          return sharePromise
-            .catch(function (err) {
-              if (err && err.name === "AbortError") {
-                flashCopiedState("share-card:cancelled");
-                return;
-              }
-              downloadBlob(blob, filename);
-              flashCopiedState("share-card:downloaded");
-            });
-        }
-        downloadBlob(blob, filename);
-        flashCopiedState("share-card:downloaded");
-      })
-      .catch(function () {
-        flashCopiedState("share-card:failed");
-      });
-  }
-
   function render() {
     document.body.classList.toggle("privacy-on", state.privacy);
     renderTopbar();
@@ -2139,12 +1862,7 @@
   }
 
   function renderScore() {
-    if (Math.abs(state.displayScore - state.score) > 1) {
-      state.displayScore += Math.round((state.score - state.displayScore) * 0.25);
-      window.requestAnimationFrame(renderScore);
-    } else {
-      state.displayScore = state.score;
-    }
+    state.displayScore = state.score;
     var key = scoreKey(state.score);
     var value = Object.keys(state.rows).length ? state.displayScore : "··";
     $("#score-number").textContent = value;
@@ -2156,27 +1874,18 @@
     $("#score-summary").innerHTML = highlightRiskText(summaryText());
     var copySummary = $("#copy-summary");
     if (copySummary) {
-      copySummary.textContent =
+      var copyLabel = copySummary.querySelector(".floating-share-label");
+      var copyTextLabel =
         state.copied === "diagnostic-summary"
-          ? "已复制摘要"
+          ? "已复制"
           : state.copied === "diagnostic-summary:failed"
             ? "复制失败"
-            : "复制诊断摘要";
-    }
-    var shareCard = $("#share-card");
-    if (shareCard) {
-      shareCard.textContent =
-        state.copied === "share-card:working"
-          ? "生成图片…"
-          : state.copied === "share-card"
-            ? "已打开分享"
-            : state.copied === "share-card:downloaded"
-              ? "已下载图片"
-              : state.copied === "share-card:cancelled"
-                ? "已取消"
-                : state.copied === "share-card:failed"
-                  ? "生成失败"
-                  : "分享结果图";
+            : "复制摘要";
+      copySummary.classList.toggle("is-copied", state.copied === "diagnostic-summary");
+      copySummary.classList.toggle("is-failed", state.copied === "diagnostic-summary:failed");
+      if (copyLabel) {
+        copyLabel.textContent = copyTextLabel;
+      }
     }
   }
 
@@ -2675,7 +2384,6 @@
     $("#copy-summary").addEventListener("click", function () {
       copyText(diagnosticSummaryText(), "diagnostic-summary");
     });
-    $("#share-card").addEventListener("click", shareDiagnosticCard);
     document.querySelectorAll("[data-region]").forEach(function (button) {
       button.addEventListener("click", function () {
         state.region = button.dataset.region;

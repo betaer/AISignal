@@ -93,20 +93,6 @@
         </div>
         <p class="score-summary" id="score-summary">正在运行本地与联网检测…</p>
 
-        <div class="score-share" aria-label="分享诊断结果">
-          <button class="button share-button share-button-primary" id="copy-summary" type="button">复制诊断摘要</button>
-          <button class="button share-button share-image" id="share-card" type="button">分享结果图</button>
-          <a
-            class="button share-button share-star"
-            href="https://github.com/betaer/AISignal"
-            target="_blank"
-            rel="noreferrer"
-          >
-            GitHub Star
-          </a>
-        </div>
-        <p class="share-note" id="share-note">摘要和图片只包含评分、判定口径和风险类别，不复制 IP、DNS、组织和指纹值。</p>
-
         <div class="score-controls" aria-label="判定口径">
           <span>判定口径</span>
           <div class="segmented" role="group" aria-label="地区判定口径">
@@ -165,5 +151,16 @@
         <a href="https://github.com/betaer/AISignal" target="_blank" rel="noreferrer">源码</a>
       </div>
     </footer>
+
+    <button class="floating-share" id="copy-summary" type="button" aria-label="复制诊断摘要" title="复制脱敏诊断摘要">
+      <svg class="floating-share-icon" aria-hidden="true" viewBox="0 0 24 24">
+        <circle cx="18" cy="5" r="3"></circle>
+        <circle cx="6" cy="12" r="3"></circle>
+        <circle cx="18" cy="19" r="3"></circle>
+        <path d="M8.6 10.6 15.4 6.4"></path>
+        <path d="M8.6 13.4 15.4 17.6"></path>
+      </svg>
+      <span class="floating-share-label">复制摘要</span>
+    </button>
   </body>
 </html>
