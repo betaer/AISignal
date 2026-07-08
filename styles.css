@@ -250,6 +250,7 @@ input:focus-visible {
 }
 
 .anchor-nav {
+  position: relative;
   overflow: hidden;
 }
 
@@ -1471,7 +1472,46 @@ input:focus-visible {
 
   .nav-scroll {
     gap: 20px;
-    padding-bottom: 7px;
+    padding: 0 24px 7px 0;
+    scroll-padding-right: 24px;
+  }
+
+  .anchor-nav::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: -1px;
+    bottom: 0;
+    z-index: 2;
+    width: 24px;
+    background: linear-gradient(90deg, rgba(247, 247, 245, 0), rgba(247, 247, 245, 0.96) 82%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+  }
+
+  .anchor-nav::before {
+    content: "";
+    position: absolute;
+    top: calc(50% - 8px);
+    right: 2px;
+    z-index: 3;
+    width: 6px;
+    height: 6px;
+    border-top: 1.5px solid var(--muted-2);
+    border-right: 1.5px solid var(--muted-2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+    transform: rotate(45deg);
+  }
+
+  .anchor-nav.is-scrollable:not(.is-scroll-end)::after {
+    opacity: 1;
+  }
+
+  .anchor-nav.is-scrollable:not(.is-scroll-end)::before {
+    opacity: 0.72;
   }
 
   .nav-item {

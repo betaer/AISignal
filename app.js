@@ -1892,6 +1892,7 @@
     });
     $("#rules-panel").hidden = !state.panels.rules;
     $("#privacy-panel").hidden = !state.panels.privacy;
+    updateNavScrollHint();
   }
 
   function renderScore() {
@@ -2433,6 +2434,8 @@
     });
     window.addEventListener("hashchange", updateActiveNav);
     window.addEventListener("scroll", throttle(updateActiveNav, 120), { passive: true });
+    $("#nav-list").addEventListener("scroll", throttle(updateNavScrollHint, 80), { passive: true });
+    window.addEventListener("resize", throttle(updateNavScrollHint, 120), { passive: true });
   }
 
   function bindDynamicEvents() {
@@ -2561,6 +2564,18 @@
       state.activeId = current;
       renderTopbar();
     }
+  }
+
+  function updateNavScrollHint() {
+    var nav = $("#nav-list");
+    var wrap = nav ? nav.closest(".anchor-nav") : null;
+    if (!nav || !wrap) {
+      return;
+    }
+    var maxScroll = nav.scrollWidth - nav.clientWidth;
+    var isScrollable = maxScroll > 2;
+    wrap.classList.toggle("is-scrollable", isScrollable);
+    wrap.classList.toggle("is-scroll-end", !isScrollable || nav.scrollLeft >= maxScroll - 2);
   }
 
   function throttle(fn, wait) {
