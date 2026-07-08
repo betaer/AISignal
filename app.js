@@ -55,6 +55,7 @@
     },
     multiIp: "",
     myIp: "",
+    exitIps: [],
     multiSummary: "点「查询」用 8 个数据源交叉核对你的出口 IP，或输入任意 IP。",
     multi: [],
     aipath: [],
@@ -113,19 +114,52 @@
     {
       title: "AI 服务",
       sites: [
-        { host: "claude.ai", unprobeable: true },
-        { host: "chatgpt.com", unprobeable: true },
-        { host: "openai.com", probeUrl: "https://status.openai.com/api/v2/status.json", mode: "cors" },
-        { host: "gemini.google.com", probeUrl: "https://www.gstatic.com/generate_204" }
+        {
+          host: "claude.ai",
+          probeUrl: "https://claude.ai/favicon.ico",
+          softFail: true,
+          failStatus: "浏览器受限"
+        },
+        {
+          host: "chatgpt.com",
+          probeUrl: "https://chatgpt.com/favicon.ico",
+          softFail: true,
+          failStatus: "浏览器受限"
+        },
+        {
+          host: "openai.com",
+          probeUrl: "https://status.openai.com/api/v2/status.json",
+          fallbackUrl: "https://openai.com/favicon.ico",
+          mode: "cors",
+          softFail: true,
+          failStatus: "浏览器受限"
+        },
+        {
+          host: "gemini.google.com",
+          probeUrl: "https://www.gstatic.com/generate_204",
+          fallbackUrl: "https://gemini.google.com/favicon.ico",
+          softFail: true,
+          failStatus: "浏览器受限"
+        }
       ]
     },
     {
-      title: "境外 · 常被墙",
-      sites: [{ host: "google.com" }, { host: "youtube.com" }, { host: "x.com" }, { host: "wikipedia.org" }]
+      title: "全球站点 · 常被墙",
+      sites: [
+        { host: "google.com", probeUrl: "https://www.gstatic.com/generate_204" },
+        { host: "youtube.com", probeUrl: "https://www.youtube.com/favicon.ico" },
+        { host: "x.com", probeUrl: "https://x.com/favicon.ico" },
+        { host: "wikipedia.org", probeUrl: "https://www.wikipedia.org/static/favicon/wikipedia.ico" }
+      ]
     },
     {
-      title: "境内站点",
-      sites: [{ host: "baidu.com" }, { host: "qq.com" }, { host: "taobao.com" }, { host: "bilibili.com" }]
+      title: "中国站点",
+      sites: [
+        { host: "baidu.com", probeUrl: "https://www.baidu.com/favicon.ico", softFail: true, failStatus: "未确认" },
+        { host: "qq.com", probeUrl: "https://www.qq.com/favicon.ico", softFail: true, failStatus: "未确认" },
+        { host: "taobao.com", probeUrl: "https://www.taobao.com/favicon.ico", softFail: true, failStatus: "未确认" },
+        { host: "bilibili.com", probeUrl: "https://www.bilibili.com/favicon.ico", softFail: true, failStatus: "未确认" }
+      ]
     }
   ];
 
@@ -774,6 +808,8 @@
   }
 
   function runIP() {
+    state.myIp = "";
+    state.exitIps = [];
     setRow("ip", {
       status: "pending",
       value: "检测中…",
@@ -819,20 +855,35 @@
         return getJson("https://api.ipify.org?format=json", 7000).then(function (payload) {
           return normalizeIpPayload(payload, "ipify.org");
         });
+      },
+      function () {
+        return getJson("https://api64.ipify.org?format=json", 7000).then(function (payload) {
+          return normalizeIpPayload(payload, "ipify64.org");
+        });
       }
     ];
-    firstSuccessful(sources)
-      .then(function (result) {
-        if (!result || !result.ok) {
+    collectSuccessful(sources)
+      .then(function (results) {
+        var ipResults = uniqueIpResults(results);
+        var result = ipResults[0] || results[0];
+        if (!result || !result.ok || !result.ip) {
           throw new Error("empty result");
         }
         state.myIp = result.ip || "";
+        state.exitIps = ipResults;
         var orgText = [result.org, result.asn].join(" ");
         var hasGeo = Boolean(result.cc || (result.country && result.country !== "未知"));
         var cn = isChinaCountry(result.cc);
         var host = isHostingOrg(orgText);
         var status = !hasGeo ? "amber" : cn ? "red" : host ? "amber" : "green";
-        var value = [result.ip, result.cc || result.country, result.org].filter(Boolean).join(" · ");
+        var value =
+          ipResults.length > 1
+            ? ipResults
+                .map(function (item) {
+                  return ipVersionLabel(item.ip) + " " + item.ip;
+                })
+                .join(" · ")
+            : [result.ip, result.cc || result.country, result.org].filter(Boolean).join(" · ");
         setRow("ip", {
           status: status,
           value: value,
@@ -841,10 +892,14 @@
           isCN: cn,
           host: host,
           ip: result.ip,
+          ips: ipResults.map(function (item) {
+            return item.ip;
+          }),
           org: result.org,
           detail:
             "出口 IP 是平台最先看到的信号。中国大陆 / 港澳口径由上方切换决定；机房、云厂商、VPN 和代理池会被视为中风险。\nIP：" +
             result.ip +
+            (ipResults.length > 1 ? "\n检测到双栈出口：\n" + formatExitIpList(ipResults) : "") +
             "\n地区：" +
             (result.country || result.cc || "未知") +
             "\nASN：" +
@@ -866,6 +921,61 @@
         });
         recomputeConsistency();
       });
+  }
+
+  function collectSuccessful(tasks) {
+    return Promise.all(
+      tasks.map(function (task) {
+        return task().catch(function () {
+          return null;
+        });
+      })
+    ).then(function (results) {
+      return results.filter(function (result) {
+        return result && result.ok;
+      });
+    });
+  }
+
+  function uniqueIpResults(results) {
+    var seen = {};
+    return results.filter(function (result) {
+      if (!result || !result.ip || seen[result.ip]) {
+        return false;
+      }
+      if (!isIpv4Address(result.ip) && !isIpv6Address(result.ip)) {
+        return false;
+      }
+      seen[result.ip] = true;
+      return true;
+    });
+  }
+
+  function ipVersionLabel(ip) {
+    if (isIpv6Address(ip)) {
+      return "IPv6";
+    }
+    if (isIpv4Address(ip)) {
+      return "IPv4";
+    }
+    return "IP";
+  }
+
+  function formatExitIpList(results) {
+    return results
+      .map(function (item) {
+        return (
+          ipVersionLabel(item.ip) +
+          "：" +
+          item.ip +
+          "（" +
+          [item.source, item.country || item.cc || "未知地区", item.asn || "未知 ASN", item.org || "未知组织"]
+            .filter(Boolean)
+            .join(" · ") +
+          "）"
+        );
+      })
+      .join("\n");
   }
 
   function firstSuccessful(tasks) {
@@ -1008,9 +1118,10 @@
         return isPrivateIp(ip);
       });
       var hiddenHosts = found.filter(isMdnsAddress);
-      var exitIp = (state.rows.ip || {}).ip;
+      var ipRow = state.rows.ip || {};
+      var exitIps = (ipRow.ips && ipRow.ips.length ? ipRow.ips : [ipRow.ip]).filter(Boolean);
       var leak = publicIps.some(function (ip) {
-        return exitIp && ip !== exitIp;
+        return exitIps.length && exitIps.indexOf(ip) < 0;
       });
       var hiddenCount = hiddenHosts.length + privateIps.length;
       if (leak) {
@@ -1022,7 +1133,7 @@
             "WebRTC 返回了一个和出口 IP 不同的公网地址，网站可能绕过代理看到你的真实网络。\n真实公网候选：" +
             publicIps.join(" / ") +
             "\n当前出口 IP：" +
-            (exitIp || "未知") +
+            (exitIps.join(" / ") || "未知") +
             (hiddenCount ? "\n另有 " + hiddenCount + " 个内网 / 浏览器隐藏候选，单独看不构成泄漏。" : "")
         });
       } else if (publicIps.length || privateIps.length) {
@@ -1266,10 +1377,6 @@
     render();
     connTargets.forEach(function (group) {
       group.sites.forEach(function (site) {
-        if (site.unprobeable) {
-          updateConnHost(site.host, "unknown", "无法探测");
-          return;
-        }
         probeHost(site).then(function (result) {
           updateConnHost(site.host, result.code, result.status);
         });
@@ -1282,35 +1389,59 @@
       var done = false;
       var startedAt = performance.now();
       var controller = new AbortController();
-      var url = site.probeUrl || "https://" + site.host + "/?_=" + Date.now();
       var timer = window.setTimeout(function () {
         controller.abort();
-        finish(false);
+        finish(false, false);
       }, 6500);
-      function finish(ok) {
+      function finish(ok, exhausted) {
         if (done) {
+          return;
+        }
+        if (!ok && !exhausted && site.fallbackUrl) {
+          probeFetch(site.fallbackUrl, "no-cors", controller.signal).then(function (fallbackOk) {
+            finish(fallbackOk, true);
+          });
           return;
         }
         done = true;
         window.clearTimeout(timer);
+        if (ok) {
+          resolve({
+            code: "ok",
+            status: "可达 " + Math.max(1, Math.round(performance.now() - startedAt)) + "ms"
+          });
+          return;
+        }
         resolve({
-          code: ok ? "ok" : "bad",
-          status: ok ? "可达 " + Math.max(1, Math.round(performance.now() - startedAt)) + "ms" : "不可达"
+          code: site.softFail ? "unknown" : "bad",
+          status: site.failStatus || "不可达"
         });
       }
-      fetch(url, {
+      probeFetch(site.probeUrl || "https://" + site.host + "/favicon.ico", site.mode || "no-cors", controller.signal).then(
+        function (ok) {
+          finish(ok, false);
+        }
+      );
+    });
+  }
+
+  function probeFetch(url, mode, signal) {
+    return fetch(addCacheBust(url), {
         cache: "no-store",
-        mode: site.mode || "no-cors",
+        mode: mode || "no-cors",
         referrerPolicy: "no-referrer",
-        signal: controller.signal
+        signal: signal
       })
         .then(function () {
-          finish(true);
+          return true;
         })
         .catch(function () {
-          finish(false);
+          return false;
         });
-    });
+  }
+
+  function addCacheBust(url) {
+    return url + (url.indexOf("?") === -1 ? "?" : "&") + "_=" + Date.now();
   }
 
   function updateConnHost(host, code, label) {
@@ -1341,10 +1472,10 @@
       };
     }
     var mainland = state.conn.groups.find(function (group) {
-      return group.title === "境内站点";
+      return group.title === "中国站点";
     });
     var nonChinaGroups = state.conn.groups.filter(function (group) {
-      return group.title !== "境内站点";
+      return group.title !== "中国站点";
     });
     var mainlandReachable = Boolean(
       mainland &&
@@ -1366,14 +1497,14 @@
       return {
         status: "green",
         result: false,
-        text: "大陆探针判定：境外探针可达，当前不像大陆直连，或已走代理 / 分流。"
+        text: "大陆探针判定：全球站点可达，当前不像大陆直连，或已走代理 / 分流。"
       };
     }
     if (mainlandReachable) {
       return {
         status: "red",
         result: true,
-        text: "大陆探针判定：境外探针不可达但大陆对照可达，符合大陆直连特征。"
+        text: "大陆探针判定：全球站点不可达但中国站点可达，符合大陆直连特征。"
       };
     }
     return {
@@ -1381,7 +1512,7 @@
       result: null,
       text: pending
         ? "大陆探针判定：仍有探针在检测中。"
-        : "大陆探针判定：境外探针和大陆对照都不可达，可能离线、被扩展拦截或网络限制。"
+        : "大陆探针判定：全球站点和中国站点都不可达，可能离线、被扩展拦截或网络限制。"
     };
   }
 
@@ -2158,7 +2289,7 @@
           );
         })
         .join("") +
-      '<p class="conn-note">向各站点发起一次 no-cors 请求，只判断能否连通，不读取内容、不带 referrer。claude.ai / chatgpt.com 没有跨源探针，标记为无法探测；“大陆直连”仅依据被墙组多数不可达与境内对照可达。</p></div></section>'
+      '<p class="conn-note">浏览器探针只判断能否建立跨站请求，不读取内容、不带 referrer。AI 服务和部分中国站点会拦截跨源探针；这类结果显示为“浏览器受限”或“未确认”，不等同于网站不可用。“大陆直连”主要依据全球站点 · 常被墙是否不可达，并结合中国站点是否可达。</p></div></section>'
     );
   }
 
@@ -2614,6 +2745,8 @@
     state.aipath = [];
     state.aistatus = [];
     state.fp = [];
+    state.myIp = "";
+    state.exitIps = [];
     state.score = 0;
     state.displayScore = 0;
     render();

@@ -782,6 +782,18 @@ input:focus-visible {
   stroke-width: 2;
 }
 
+.floating-share-icon-check {
+  display: none;
+}
+
+.floating-share.is-copied .floating-share-icon-share {
+  display: none;
+}
+
+.floating-share.is-copied .floating-share-icon-check {
+  display: block;
+}
+
 .floating-top-link {
   display: inline-flex;
   align-items: center;
