@@ -241,6 +241,13 @@
       .replace(chinaPattern, '<strong class="china-emphasis">$1</strong>');
   }
 
+  function highlightSummaryText(value) {
+    if (/未发现|未检出|未命中/.test(value || "")) {
+      return escapeHtml(value);
+    }
+    return highlightRiskText(value);
+  }
+
   function statusClass(status) {
     return ["green", "amber", "red"].indexOf(status) >= 0 ? status : "pending";
   }
@@ -1323,10 +1330,7 @@
           yourIp: yourIp
             ? {
                 ip: yourIp.ip || "—",
-                sub:
-                  "你的出口 IP · " +
-                  (yourIp.country_name || yourIp.country || "Unknown") +
-                  (yourIp.asn ? " · " + yourIp.asn : "")
+                sub: (yourIp.country_name || yourIp.country || "Unknown") + (yourIp.asn ? " · " + yourIp.asn : "")
               }
             : null,
           servers: servers,
@@ -2256,7 +2260,7 @@
       '<div class="dns-extra"><div class="dns-summary"><div class="advice-label">' +
       (dns.running ? "DNS 检测中" : dns.mode === "deep" ? "深度检测结果" : "标准检测结果") +
       "</div><p>" +
-      highlightRiskText(dns.summary || "正在等待 DNS 解析器返回结果…") +
+      highlightSummaryText(dns.summary || "正在等待 DNS 解析器返回结果…") +
       "</p></div>";
     if (dns.yourIp || (dns.servers && dns.servers.length)) {
       html +=
@@ -2267,8 +2271,8 @@
           statusClass(dns.status) +
           '"></span><span class="sensitive">' +
           escapeHtml(dns.yourIp.ip) +
-          '</span></span></td><td>出口 IP</td><td>' +
-          highlightRiskText(dns.yourIp.sub || "—") +
+          '</span></span></td><td>出口</td><td>' +
+          escapeHtml(dns.yourIp.sub || "—") +
           "</td></tr>";
       }
       (dns.servers || []).forEach(function (server) {
