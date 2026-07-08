@@ -486,12 +486,15 @@
     });
 
     var fonts = detectFonts();
+    var fontResultText = fonts.hit.length
+      ? "检测到的中文字体：" + fonts.hit.join(" / ")
+      : "未检测到候选中文字体。";
     setRow("font", {
       status: fonts.hit.length ? "amber" : "green",
-      value: fonts.hit.length ? fonts.hit.join(" · ") : "未命中常见简体中文字体",
+      value: fonts.hit.length ? "检测到：" + fonts.hit.join(" · ") : "未检测到候选中文字体",
       detail:
-        "字体探测通过文字宽度差异推断本机是否存在特定字体。命中中文字体不是风险本身，但黑体类（微软雅黑 / 苹方 / 黑体）与宋体类（SimSun / 宋体 / 思源宋体）是大陆系统常见弱来源信号。\n已检测字体：" +
-        (fonts.hit.join(" / ") || "未命中")
+        fontResultText +
+        "\n字体探测通过文字宽度差异判断本机是否存在这些候选字体。只展示检测到的字体；未命中的候选字体不会列出。命中中文字体不是风险本身，但黑体类（微软雅黑 / 苹方 / 黑体）与宋体类（SimSun / 宋体 / 思源宋体）是大陆系统常见弱来源信号。"
     });
 
     state.fp = collectFingerprint();
@@ -649,7 +652,7 @@
       { key: "语言", value: languages.join(", ") || "未知" },
       { key: "时区", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "未知" },
       { key: "Canvas 指纹", value: canvasHash, sensitive: true },
-      { key: "音频指纹", value: "计算中", sensitive: true, id: "audio" }
+      { key: "声纹指纹", value: "计算中", sensitive: true, id: "audio" }
     ];
   }
 
@@ -2160,7 +2163,7 @@
           { key: "语言", value: "检测中" },
           { key: "时区", value: "检测中" },
           { key: "Canvas 指纹", value: "检测中" },
-          { key: "音频指纹", value: "计算中" }
+          { key: "声纹指纹", value: "计算中" }
         ];
     return (
       '<section class="section" id="sec-fp">' +
@@ -2224,15 +2227,15 @@
           return (
             '<div class="trace-command-card"><div class="trace-command-head"><span class="command-label">' +
             escapeHtml(command[0]) +
-            '</span><button class="copy-button ' +
+            '</span></div><div class="command-box"><code class="command-code">' +
+            escapeHtml(command[1]) +
+            '</code><button class="copy-button ' +
             (copied ? "is-copied" : "") +
             '" type="button" data-copy="' +
             escapeHtml(command[1]) +
             '">' +
             (copied ? "✓ 已复制" : "复制") +
-            '</button></div><code class="command-code">' +
-            escapeHtml(command[1]) +
-            "</code></div>"
+            "</button></div></div>"
           );
         })
         .join("") +
