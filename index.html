@@ -28,7 +28,7 @@
     />
     <meta name="twitter:image" content="https://betaer.github.io/AISignalGuard/assets/social-preview.png" />
     <link rel="icon" href="favicon.svg?v=20260708-3" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20260708-9" />
+    <link rel="stylesheet" href="styles.css?v=20260708-11" />
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-8YCMR5G9CN"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -38,7 +38,7 @@
       gtag("js", new Date());
       gtag("config", "G-8YCMR5G9CN");
     </script>
-    <script src="app.js?v=20260708-6" defer></script>
+    <script src="app.js?v=20260708-7" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">跳到检测结果</a>
@@ -166,7 +166,13 @@
         </svg>
         <span class="floating-share-label">复制摘要</span>
       </button>
-      <a class="floating-top-link" href="#sec-score" aria-label="回到顶部">↑ Top</a>
+      <a class="floating-top-link" href="#sec-score" aria-label="返回顶部">
+        <svg class="floating-top-icon" aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M12 19V5"></path>
+          <path d="m6 11 6-6 6 6"></path>
+        </svg>
+        <span class="floating-top-label">返回顶部</span>
+      </a>
     </div>
   </body>
 </html>

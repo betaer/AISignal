@@ -503,8 +503,7 @@
       detail:
         "浏览器会把首选语言发送给大部分网站。当前采用 AI Signal 兼容口径：" +
         regionLabel() +
-        "。语言不一定代表真实地区，但它和出口 IP、账号资料不一致时，会成为画像矛盾。\n当前语言列表：" +
-        (languages.join(" / ") || "未知")
+        "。语言不一定代表真实地区，但它和出口 IP、账号资料不一致时，会成为画像矛盾。"
     });
 
     var timeZone = "未知";
@@ -518,8 +517,7 @@
       status: tzFlag ? "amber" : "green",
       value: timeZone,
       detail:
-        "网页可以读取系统时区。已兼容旧 tzdata 别名（PRC / Hongkong / ROC）和无法读取时区时的 UTC+8 回退。若出口 IP 在境外，但时区仍指向当前中国口径内地区，风控会看到明显矛盾。\n当前时区：" +
-        timeZone
+        "网页可以读取系统时区。已兼容旧 tzdata 别名（PRC / Hongkong / ROC）和无法读取时区时的 UTC+8 回退。若出口 IP 在境外，但时区仍指向当前中国口径内地区，风控会看到明显矛盾。"
     });
 
     var emoji = detectEmoji();
@@ -527,20 +525,18 @@
       status: emoji.flag === true ? "amber" : emoji.flag === null ? "pending" : "green",
       value: emoji.value,
       detail:
-        "AI Signal 兼容逻辑会先用 😀 确认彩色 Emoji 可用，再看 🇹🇼 是否被渲染为黑白字母或完全不渲染。Windows 不适用，Canvas 被保护时也不误报。\n检测值：" +
+        "AI Signal 兼容逻辑会先用 😀 确认彩色 Emoji 可用，再看 🇹🇼 是否被渲染为黑白字母或完全不渲染。Windows 不适用，Canvas 被保护时也不误报。\n" +
         emoji.detail
     });
 
     var fonts = detectFonts();
-    var fontResultText = fonts.hit.length
-      ? "检测到的中文字体：" + fonts.hit.join(" / ")
-      : "未检测到候选中文字体。";
+    var fontGroups = compactFontHits(fonts.hit);
     setRow("font", {
       status: fonts.hit.length ? "amber" : "green",
-      value: fonts.hit.length ? "检测到：" + fonts.hit.join(" · ") : "未检测到候选中文字体",
+      value: fontGroups.labels.length ? "检测到：" + fontGroups.labels.join(" · ") : "未检测到候选中文字体",
       detail:
-        fontResultText +
-        "\n字体探测通过文字宽度差异判断本机是否存在这些候选字体。只展示检测到的字体；未命中的候选字体不会列出。命中中文字体不是风险本身，但黑体类（微软雅黑 / 苹方 / 黑体）与宋体类（SimSun / 宋体 / 思源宋体）是大陆系统常见弱来源信号。"
+        fontGroups.detail +
+        "\n字体探测通过文字宽度差异判断本机是否存在候选字体，并把同类字体合并显示；未命中的候选字体不会列出。中文字体不是风险本身，但黑体类和宋体类是大陆系统常见弱来源信号。"
     });
 
     state.fp = collectFingerprint();
@@ -657,6 +653,54 @@
     canvas.remove();
     return {
       hit: hit
+    };
+  }
+
+  function compactFontHits(hit) {
+    var groups = [];
+    var notes = [];
+    var used = {};
+    function hasAny(names) {
+      var found = false;
+      names.forEach(function (name) {
+        if (hit.indexOf(name) >= 0) {
+          used[name] = true;
+          found = true;
+        }
+      });
+      return found;
+    }
+    if (
+      hasAny([
+        "Microsoft YaHei",
+        "SimHei",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "STHeiti",
+        "Heiti SC",
+        "Source Han Sans SC",
+        "Noto Sans CJK SC",
+        "HarmonyOS Sans",
+        "Alibaba PuHuiTi",
+        "WenQuanYi Micro Hei"
+      ])
+    ) {
+      groups.push("HeiTi");
+      notes.push("HeiTi（黑体 / 苹方 / 微软雅黑等）");
+    }
+    if (hasAny(["Songti SC", "STSong", "Source Han Serif SC", "Noto Serif CJK SC"])) {
+      groups.push("SongTi");
+      notes.push("SongTi（宋体类）");
+    }
+    hit.forEach(function (font) {
+      if (!used[font] && groups.indexOf(font) < 0) {
+        groups.push(font);
+        notes.push(font);
+      }
+    });
+    return {
+      labels: groups,
+      detail: groups.length ? "命中类别：" + notes.join(" / ") + "。" : "未检测到候选中文字体。"
     };
   }
 
@@ -2171,11 +2215,11 @@
     return (
       '<div class="row-body"><div class="row-result"><span class="dot ' +
       statusClass(row.status) +
-      '"></span><span class="row-result-label">检测结果</span><strong class="row-result-value ' +
+      '"></span><span class="row-result-text"><span class="row-result-label">检测结果</span><strong class="row-result-value ' +
       (row.sensitive ? "sensitive" : "") +
       '">' +
       highlightRiskText(row.value || "暂无结果") +
-      '</strong></div><p class="row-detail">' +
+      "</strong></span></div><p class=\"row-detail\">" +
       highlightRiskText(row.detail || "暂无详细信息") +
       "</p>" +
       (row.advice
