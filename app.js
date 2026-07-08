@@ -444,15 +444,19 @@
     if (payload.asn && typeof payload.asn === "object") {
       org = org || payload.asn.org || payload.asn.descr || "";
     }
+    var normalizedCc = String(cc || "").toUpperCase();
+    var countryText = country || normalizedCc || "";
+    var geoOk = Boolean(normalizedCc || (countryText && countryText !== "未知"));
     return {
       source: source,
       ip: ip,
-      cc: String(cc || "").toUpperCase(),
-      country: country || cc || "未知",
-      geo: [city, cc].filter(Boolean).join(" · ") || "—",
+      cc: normalizedCc,
+      country: countryText || "未返回地区",
+      geo: [city, normalizedCc].filter(Boolean).join(" · ") || "—",
       asn: asn ? String(asn).replace(/^AS/i, "AS") : "—",
       org: org || "—",
-      ok: Boolean(ip || cc || country)
+      ok: Boolean(ip || normalizedCc || countryText || asn || org),
+      geoOk: geoOk
     };
   }
 
@@ -1444,9 +1448,8 @@
       },
       {
         source: "country.is",
-        url: target
-          ? "https://api.country.is/" + encodeURIComponent(target)
-          : "https://api.country.is/"
+        url: target && target !== state.myIp ? "" : "https://api.country.is/",
+        unsupported: Boolean(target && target !== state.myIp)
       },
       {
         source: "iplocation.net",
@@ -1457,6 +1460,20 @@
     ];
 
     tasks.forEach(function (task, index) {
+      if (task.unsupported) {
+        state.multi[index] = {
+          source: task.source,
+          country: "不支持指定 IP",
+          geo: "仅支持当前出口",
+          asn: "—",
+          org: "—",
+          ok: false,
+          geoOk: false
+        };
+        summarizeMulti();
+        render();
+        return;
+      }
       getJson(task.url, 8500)
         .then(function (payload) {
           return normalizeIpPayload(payload, task.source);
@@ -1496,8 +1513,22 @@
       state.multiSummary = "暂未拿到可用结果，可能是接口限流或跨源限制。";
       return;
     }
+    var geoOk = ok.filter(function (item) {
+      return item.geoOk;
+    });
+    if (!geoOk.length) {
+      state.multi = state.multi.map(function (item) {
+        return Object.assign({}, item, {
+          mismatch: false
+        });
+      });
+      state.multiSummary =
+        ok.length +
+        " 个数据源返回结果，但都没有给出可用于地理交叉的地区字段；ASN / 组织信息仅作参考。";
+      return;
+    }
     var countries = {};
-    ok.forEach(function (item) {
+    geoOk.forEach(function (item) {
       var key = item.cc || item.country || "未知";
       countries[key] = (countries[key] || 0) + 1;
     });
@@ -1506,7 +1537,7 @@
     });
     var main = sorted[0];
     state.multi = state.multi.map(function (item) {
-      if (!item.ok) {
+      if (!item.ok || !item.geoOk) {
         return item;
       }
       return Object.assign({}, item, {
@@ -1518,7 +1549,9 @@
     }).length;
     state.multiSummary =
       ok.length +
-      " 个数据源返回结果，主流判定为 " +
+      " 个数据源返回结果，其中 " +
+      geoOk.length +
+      " 个可用于地理交叉；主流判定为 " +
       main +
       (mismatch ? "，其中 " + mismatch + " 个来源与主流结果不一致。" : "，未发现明显地理冲突。");
   }
