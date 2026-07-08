@@ -199,6 +199,10 @@
       .replace(/'/g, "&#039;");
   }
 
+  function highlightRiskText(value) {
+    return escapeHtml(value).replace(/(矛盾|异常)/g, '<strong class="risk-emphasis">$1</strong>');
+  }
+
   function statusClass(status) {
     return ["green", "amber", "red"].indexOf(status) >= 0 ? status : "pending";
   }
@@ -903,7 +907,7 @@
       setRow("consistency", {
         status: "pending",
         value: "待出口 IP",
-        detail: "正在等待出口 IP 结果，之后会核对 IP、时区和语言是否互相矛盾。",
+        detail: "正在等待出口 IP 结果，之后会核对 IP、时区和语言是否互相冲突。",
         advice: ""
       });
       return;
@@ -924,13 +928,13 @@
         status: "amber",
         value: "自洽但暴露",
         flag: false,
-        detail: "各信号和出口 IP 没有明显矛盾，但整体画像仍指向中国口径内地区。",
+        detail: "各信号和出口 IP 未见明显冲突，但整体画像仍指向中国口径内地区。",
         advice: "核心是更换出口 IP，并让语言、时区、DNS、WebRTC 一起跟随出口地区。"
       });
     } else {
       setRow("consistency", {
         status: "green",
-        value: "一致 · 无明显矛盾",
+        value: "一致 · 未见冲突",
         flag: false,
         detail: "出口 IP、语言和时区未发现明显互相冲突。继续检查 DNS、WebRTC 和 AI 路径。",
         advice: ""
@@ -1767,7 +1771,7 @@
     $("#score-ring").style.stroke = COLORS[key];
     $("#score-ring").style.strokeDashoffset =
       RING_CIRCUMFERENCE * (1 - (Object.keys(state.rows).length ? state.displayScore : 0) / 100);
-    $("#score-summary").textContent = summaryText();
+    $("#score-summary").innerHTML = highlightRiskText(summaryText());
   }
 
   function renderSections() {
@@ -1876,7 +1880,7 @@
       '" title="' +
       escapeHtml(row.value) +
       '">' +
-      escapeHtml(row.value) +
+      highlightRiskText(row.value) +
       '</span><span class="chevron">›</span></button>' +
       (row.open ? renderRowBody(row) : "") +
       "</article>"
@@ -1890,13 +1894,13 @@
       '"></span><span class="row-result-label">检测结果</span><strong class="row-result-value ' +
       (row.sensitive ? "sensitive" : "") +
       '">' +
-      escapeHtml(row.value || "暂无结果") +
+      highlightRiskText(row.value || "暂无结果") +
       '</strong></div><p class="row-detail">' +
-      escapeHtml(row.detail || "暂无详细信息") +
+      highlightRiskText(row.detail || "暂无详细信息") +
       "</p>" +
       (row.advice
         ? '<div class="advice"><div class="advice-label">规避建议</div><p>' +
-          escapeHtml(row.advice) +
+          highlightRiskText(row.advice) +
           "</p></div>"
         : "") +
       (row.actions && row.actions.length
@@ -1928,7 +1932,7 @@
       '<div class="dns-extra"><div class="dns-summary"><div class="advice-label">' +
       (dns.running ? "DNS 检测中" : dns.mode === "deep" ? "深度检测结果" : "标准检测结果") +
       "</div><p>" +
-      escapeHtml(dns.summary || "正在等待 DNS 解析器返回结果…") +
+      highlightRiskText(dns.summary || "正在等待 DNS 解析器返回结果…") +
       "</p></div>";
     if (dns.yourIp || (dns.servers && dns.servers.length)) {
       html +=
@@ -1975,15 +1979,10 @@
             })
           };
         });
-    var verdict = networkVerdict();
     return (
       '<section class="section" id="sec-conn">' +
       renderSectionHead("网络连通", "是否大陆直连", renderSectionAction("↻ 重测", "run-conn")) +
-      '<div class="panel conn-panel"><div class="summary-line"><span class="table-source"><span class="dot ' +
-      statusClass(verdict.status) +
-      '"></span>' +
-      escapeHtml(verdict.text) +
-      "</span></div>" +
+      '<div class="panel conn-panel">' +
       groups
         .map(function (group) {
           return (
@@ -2142,7 +2141,7 @@
             '" href="' +
             escapeHtml(row.page || "#") +
             '" target="_blank" rel="noreferrer">' +
-            escapeHtml(row.value) +
+            highlightRiskText(row.value) +
             "</a></div>"
           );
         })
