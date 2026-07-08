@@ -8,7 +8,7 @@
  
  · <a href="https://github.com/betaer/AISignalGuard/blob/main/docs/launch-kit.md" target="_blank" rel="noopener noreferrer">发布物料</a>
 
- [![GitHub stars](https://img.shields.io/github/stars/betaer/AISignalGuard.svg?style=social)](https://github.com/betaer/AISignalGuard) ⭐  Star for AI Signal Guard / 请给本项目点个赞！
+ <a href="https://github.com/betaer/AISignalGuard" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/stars/betaer/AISignalGuard.svg?style=social" alt="GitHub stars"></a> ⭐  Star for AI Signal Guard / 请给本项目点个赞！
 
 ![AI Signal Guard social preview](assets/social-preview.svg)
 
@@ -58,7 +58,7 @@ AI Signal Guard 是纯静态页面，没有自建后端。
 
 ## 快速使用
 
-1. 打开 [https://betaer.github.io/AISignalGuard/](https://betaer.github.io/AISignalGuard/)。
+1. 打开 <a href="https://betaer.github.io/AISignalGuard/" target="_blank" rel="noopener noreferrer">https://betaer.github.io/AISignalGuard/</a>。
 2. 等待自动检测完成，先看综合信任分和风险摘要。
 3. 展开红色或黄色项目，查看详细解释和规避建议。
 4. 需要交流时开启“隐私模式”，或点击右下角“复制摘要”分享不含敏感值的诊断文本。
@@ -84,8 +84,8 @@ python3 -m http.server 8080
 - Topics：`ai-signal`、`browser-analyzer`、`network-diagnostics`、`privacy-tools`、`ip-checker`、`dns-leak-test`、`webrtc-leak-test`、`browser-fingerprint`、`cloudflare-trace`、`ai-tools`、`static-site`、`github-pages`、`security-research`、`network-privacy`
 - Social preview：上传 `assets/social-preview.png`
 - About：`Client-side browser and network signal analyzer for AI services.`
-- Website：`https://betaer.github.io/AISignalGuard/`
-- Release：发布 `v1.0.0`，文案可直接使用 [docs/release-v1.0.0.md](docs/release-v1.0.0.md)
+- Website：<a href="https://betaer.github.io/AISignalGuard/" target="_blank" rel="noopener noreferrer">https://betaer.github.io/AISignalGuard/</a>
+- Release：发布 `v1.0.0`，文案可直接使用 <a href="docs/release-v1.0.0.md" target="_blank" rel="noopener noreferrer">docs/release-v1.0.0.md</a>
 
 ## 路线图
 
