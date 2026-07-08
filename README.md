@@ -8,12 +8,10 @@
  
  · <a href="https://github.com/betaer/AISignalGuard/blob/main/docs/launch-kit.md" target="_blank" rel="noopener noreferrer">发布物料</a>
 
- · [![GitHub stars](https://img.shields.io/github/stars/betaer/AISignalGuard.svg?style=social)](https://github.com/betaer/AISignalGuard)
-
-⭐ If you like this project, please consider giving it a star!
-⭐ 如果您喜欢这个项目，请给它点个赞！
+ [![GitHub stars](https://img.shields.io/github/stars/betaer/AISignalGuard.svg?style=social)](https://github.com/betaer/AISignalGuard) ⭐  Star for AI Signal Guard / 请给本项目点个赞！
 
 ![AI Signal Guard social preview](assets/social-preview.svg)
+
 
 ## 为什么要做
 
