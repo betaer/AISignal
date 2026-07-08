@@ -2,7 +2,7 @@
   "use strict";
 
   var RING_CIRCUMFERENCE = 326.726;
-  var REPO = "betaer/SignalGuard";
+  var REPO = "betaer/AISignal";
   var NAV = [
     ["sec-score", "信任分"],
     ["sec-ip", "出口 IP"],
@@ -77,7 +77,7 @@
     lang: "按出口地区调整浏览器首选语言。例如美国出口可使用 en-US / en，香港出口可使用 zh-HK / en-HK。",
     tz: "把系统时区调整到出口 IP 所在城市附近。浏览器通常直接读取系统时区，网页脚本可以看到。",
     emoji: "这只是弱信号。若其他核心项已经一致，Emoji 差异通常不是决定因素。",
-    font: "中文字体本身不是问题，但和境外 IP、英文语言组合在一起时，会增加画像矛盾。需要时用独立浏览器配置文件隔离。",
+    font: "中文字体只是弱来源信号，不等于风险。它需要和出口 IP、语言、时区、DNS 等信号一起看；需要隔离时，用独立浏览器配置文件或远程浏览器环境。",
     webrtc: "浏览器或代理工具里关闭 WebRTC 非代理 UDP，或开启代理软件的 TUN / 全局模式，避免 STUN 直连暴露真实地址。",
     dns: "让 DNS 与代理走同一隧道，开启远程解析 / DoH / TUN，避免使用运营商本地 DNS；必要时关闭 IPv6 或确保 IPv6 DNS 也走代理。"
   };
@@ -85,19 +85,27 @@
   var CHINESE_FONT_CANDIDATES = [
     "DengXian",
     "FangSong",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "SimHei",
+    "SimSun",
+    "NSimSun",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "STHeiti",
+    "Heiti SC",
+    "Songti SC",
+    "STSong",
+    "Source Han Sans SC",
+    "Source Han Serif SC",
+    "Noto Sans CJK SC",
+    "Noto Serif CJK SC",
     "方正小标宋简体",
     "小标宋体",
     "仿宋_GB2312",
     "HarmonyOS Sans",
     "Alibaba PuHuiTi",
     "Smiley Sans",
-    "Microsoft YaHei",
-    "SimSun",
-    "SimHei",
-    "PingFang SC",
-    "Heiti SC",
-    "Noto Sans CJK SC",
-    "Source Han Sans SC",
     "WenQuanYi Micro Hei"
   ];
 
@@ -286,9 +294,38 @@
   }
 
   function isPrivateIp(ip) {
-    return /^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|::1|fc|fd|fe80)/i.test(
-      ip || ""
+    var value = String(ip || "").toLowerCase();
+    return (
+      /^(10\.|127\.|169\.254\.|192\.168\.|192\.0\.0\.|198\.18\.|198\.19\.|172\.(1[6-9]|2\d|3[0-1])\.|::1|fc|fd|fe80)/i.test(
+        value
+      ) ||
+      /^100\.(6[4-9]|[78]\d|9\d|1[01]\d|12[0-7])\./.test(value) ||
+      /^(24[0-9]|25[0-5])\./.test(value)
     );
+  }
+
+  function isIpv4Address(value) {
+    if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(value || "")) {
+      return false;
+    }
+    return String(value)
+      .split(".")
+      .every(function (part) {
+        var n = Number(part);
+        return n >= 0 && n <= 255;
+      });
+  }
+
+  function isIpv6Address(value) {
+    return /^[a-f0-9:]+$/i.test(value || "") && String(value).indexOf(":") >= 0;
+  }
+
+  function isMdnsAddress(value) {
+    return /\.local$/i.test(value || "");
+  }
+
+  function isPublicNetworkAddress(value) {
+    return (isIpv4Address(value) || isIpv6Address(value)) && !isPrivateIp(value);
   }
 
   function getJson(url, timeoutMs) {
@@ -418,7 +455,7 @@
       status: languageFlag ? "amber" : "green",
       value: languages.filter(Boolean).join(" · ") || "未知",
       detail:
-        "浏览器会把首选语言发送给大部分网站。当前采用 CNSignal 兼容口径：" +
+        "浏览器会把首选语言发送给大部分网站。当前采用 AI Signal 兼容口径：" +
         regionLabel() +
         "。语言不一定代表真实地区，但它和出口 IP、账号资料不一致时，会成为画像矛盾。\n当前语言列表：" +
         (languages.join(" / ") || "未知")
@@ -444,7 +481,7 @@
       status: emoji.flag === true ? "amber" : emoji.flag === null ? "pending" : "green",
       value: emoji.value,
       detail:
-        "CNSignal 兼容逻辑会先用 😀 确认彩色 Emoji 可用，再看 🇹🇼 是否被渲染为黑白字母或完全不渲染。Windows 不适用，Canvas 被保护时也不误报。\n检测值：" +
+        "AI Signal 兼容逻辑会先用 😀 确认彩色 Emoji 可用，再看 🇹🇼 是否被渲染为黑白字母或完全不渲染。Windows 不适用，Canvas 被保护时也不误报。\n检测值：" +
         emoji.detail
     });
 
@@ -453,11 +490,13 @@
       status: fonts.hit.length ? "amber" : "green",
       value: fonts.hit.length ? fonts.hit.join(" · ") : "未命中常见简体中文字体",
       detail:
-        "字体探测通过文字宽度差异推断本机是否存在特定字体。命中中文字体不是风险本身，但和其他信号组合后会增加画像可信度。\n已检测字体：" +
+        "字体探测通过文字宽度差异推断本机是否存在特定字体。命中中文字体不是风险本身，但黑体类（微软雅黑 / 苹方 / 黑体）与宋体类（SimSun / 宋体 / 思源宋体）是大陆系统常见弱来源信号。\n已检测字体：" +
         (fonts.hit.join(" / ") || "未命中")
     });
 
     state.fp = collectFingerprint();
+    render();
+    updateAudioFingerprint();
   }
 
   function detectEmoji() {
@@ -465,7 +504,7 @@
       return {
         flag: null,
         value: "Windows 不适用",
-        detail: "Windows 对国旗 Emoji 的支持策略不同，CNSignal 不用此项判断。"
+        detail: "Windows 对国旗 Emoji 的支持策略不同，AI Signal 不用此项判断。"
       };
     }
     try {
@@ -482,14 +521,14 @@
         return {
           flag: true,
           value: "旗帜未渲染",
-          detail: "普通 Emoji 正常，但 🇹🇼 完全不渲染，符合 CNSignal 的大陆设备弱特征。"
+          detail: "普通 Emoji 正常，但 🇹🇼 完全不渲染，符合 AI Signal 的大陆设备弱特征。"
         };
       }
       if (flag.isMono) {
         return {
           flag: true,
           value: "旗帜黑白回退",
-          detail: "普通 Emoji 正常，但 🇹🇼 渲染为黑白字母回退，符合 CNSignal 的大陆设备弱特征。"
+          detail: "普通 Emoji 正常，但 🇹🇼 渲染为黑白字母回退，符合 AI Signal 的大陆设备弱特征。"
         };
       }
       return {
@@ -591,7 +630,7 @@
     var languages = Array.from(nav.languages || [nav.language || ""]).filter(Boolean);
     var dpr = window.devicePixelRatio || 1;
     return [
-      { key: "UserAgent", value: nav.userAgent || "未知", sensitive: true },
+      { key: "UserAgent", value: nav.userAgent || "未知", sensitive: true, wide: true },
       { key: "平台 Platform", value: nav.platform || "未知" },
       {
         key: "屏幕",
@@ -609,8 +648,64 @@
       { key: "设备内存", value: nav.deviceMemory ? nav.deviceMemory + " GB" : "未知" },
       { key: "语言", value: languages.join(", ") || "未知" },
       { key: "时区", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "未知" },
-      { key: "Canvas 指纹", value: canvasHash, sensitive: true }
+      { key: "Canvas 指纹", value: canvasHash, sensitive: true },
+      { key: "音频指纹", value: "计算中", sensitive: true, id: "audio" }
     ];
+  }
+
+  function updateAudioFingerprint() {
+    getAudioHash().then(function (hash) {
+      state.fp = state.fp.map(function (item) {
+        if (item.id !== "audio") {
+          return item;
+        }
+        return Object.assign({}, item, {
+          value: hash
+        });
+      });
+      render();
+    });
+  }
+
+  function getAudioHash() {
+    return new Promise(function (resolve) {
+      var OfflineAudio = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OfflineAudio) {
+        resolve("不可用");
+        return;
+      }
+      try {
+        var context = new OfflineAudio(1, 5000, 44100);
+        var oscillator = context.createOscillator();
+        var compressor = context.createDynamicsCompressor();
+        oscillator.type = "triangle";
+        oscillator.frequency.value = 10000;
+        compressor.threshold.value = -50;
+        compressor.knee.value = 40;
+        compressor.ratio.value = 12;
+        compressor.attack.value = 0;
+        compressor.release.value = 0.25;
+        oscillator.connect(compressor);
+        compressor.connect(context.destination);
+        oscillator.start(0);
+        oscillator.stop(0.12);
+        context
+          .startRendering()
+          .then(function (buffer) {
+            var data = buffer.getChannelData(0);
+            var samples = [];
+            for (var i = 4500; i < data.length; i += 8) {
+              samples.push(data[i].toFixed(6));
+            }
+            resolve(simpleHash(samples.join(",")));
+          })
+          .catch(function () {
+            resolve("读取失败");
+          });
+      } catch (err) {
+        resolve("读取失败");
+      }
+    });
   }
 
   function getWebglInfo() {
@@ -863,20 +958,15 @@
       pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
       });
-      pc.createDataChannel("signalguard");
+      pc.createDataChannel("aisignal");
       pc.onicecandidate = function (event) {
         if (!event || !event.candidate || !event.candidate.candidate) {
           return;
         }
-        var candidate = event.candidate.candidate;
-        var matches = candidate.match(
-          /([0-9]{1,3}(?:\.[0-9]{1,3}){3}|[a-f0-9:]{4,})/gi
-        );
-        (matches || []).forEach(function (ip) {
-          if (found.indexOf(ip) < 0) {
-            found.push(ip);
-          }
-        });
+        var address = extractIceAddress(event.candidate.candidate);
+        if (address && found.indexOf(address) < 0) {
+          found.push(address);
+        }
       };
       pc.createOffer()
         .then(function (offer) {
@@ -897,30 +987,50 @@
         pc.close();
       } catch (err) {}
       var publicIps = found.filter(function (ip) {
-        return !isPrivateIp(ip) && ip.indexOf(":") < 0;
+        return isPublicNetworkAddress(ip);
       });
-      var privateIps = found.filter(isPrivateIp);
+      var privateIps = found.filter(function (ip) {
+        return isPrivateIp(ip);
+      });
+      var hiddenHosts = found.filter(isMdnsAddress);
       var exitIp = (state.rows.ip || {}).ip;
       var leak = publicIps.some(function (ip) {
         return exitIp && ip !== exitIp;
       });
+      var hiddenCount = hiddenHosts.length + privateIps.length;
       if (leak) {
         setRow("webrtc", {
           status: "red",
-          value: publicIps.join(" · "),
+          value: "发现真实公网候选",
           flag: true,
           detail:
-            "WebRTC STUN 返回了不同于出口 IP 的公网候选地址，可能暴露真实网络。\n候选地址：" +
-            found.join(" / ")
+            "WebRTC 返回了一个和出口 IP 不同的公网地址，网站可能绕过代理看到你的真实网络。\n真实公网候选：" +
+            publicIps.join(" / ") +
+            "\n当前出口 IP：" +
+            (exitIp || "未知") +
+            (hiddenCount ? "\n另有 " + hiddenCount + " 个内网 / 浏览器隐藏候选，单独看不构成泄漏。" : "")
         });
       } else if (publicIps.length || privateIps.length) {
         setRow("webrtc", {
-          status: "amber",
-          value: found.join(" · "),
+          status: "green",
+          value: publicIps.length ? "候选与出口一致" : "仅内网候选",
           flag: false,
           detail:
-            "检测到 WebRTC 候选地址。若只出现 mDNS、内网地址或与出口 IP 一致，风险较低；若出现真实公网地址，需要关闭 WebRTC 直连。\n候选地址：" +
-            found.join(" / ")
+            (publicIps.length
+              ? "WebRTC 看到了公网候选，但它和当前出口 IP 一致，未发现绕过代理的真实公网地址。"
+              : "WebRTC 只返回了内网、CGNAT、Fake-IP 或保留地址，未发现可直接定位真实网络的公网候选。") +
+            "\n已归类候选：" +
+            summarizeWebrtcCandidates(publicIps, privateIps, hiddenHosts)
+        });
+      } else if (hiddenHosts.length) {
+        setRow("webrtc", {
+          status: "green",
+          value: "浏览器已隐藏地址",
+          flag: false,
+          detail:
+            "浏览器把 WebRTC 候选地址隐藏成 mDNS 主机名，网页看不到真实内网 IP 或公网 IP。这是现代浏览器常见的保护行为。\n已隐藏候选：" +
+            hiddenHosts.length +
+            " 个"
         });
       } else {
         setRow("webrtc", {
@@ -932,6 +1042,31 @@
         });
       }
     }, 4200);
+  }
+
+  function extractIceAddress(candidate) {
+    var parts = String(candidate || "").trim().split(/\s+/);
+    if (parts.length >= 6 && /^candidate:/i.test(parts[0])) {
+      return parts[4];
+    }
+    var fallback = String(candidate || "").match(
+      /([0-9]{1,3}(?:\.[0-9]{1,3}){3}|[a-f0-9.-]+\.local|[a-f0-9:]{4,})/i
+    );
+    return fallback ? fallback[1] : "";
+  }
+
+  function summarizeWebrtcCandidates(publicIps, privateIps, hiddenHosts) {
+    var parts = [];
+    if (publicIps.length) {
+      parts.push("公网 " + publicIps.join(" / "));
+    }
+    if (privateIps.length) {
+      parts.push("内网 / 保留 " + privateIps.join(" / "));
+    }
+    if (hiddenHosts.length) {
+      parts.push("浏览器隐藏 mDNS " + hiddenHosts.length + " 个");
+    }
+    return parts.join("；") || "无";
   }
 
   function runDNS(mode) {
@@ -1068,20 +1203,26 @@
 
   function loadProbeImage(url, timeoutMs) {
     return new Promise(function (resolve) {
-      var img = new Image();
       var done = false;
+      var controller = new AbortController();
       var timer = window.setTimeout(finish, timeoutMs || 5000);
       function finish() {
         if (done) {
           return;
         }
         done = true;
+        controller.abort();
         window.clearTimeout(timer);
         resolve();
       }
-      img.onload = finish;
-      img.onerror = finish;
-      img.src = url + "?_=" + Date.now();
+      fetch(url + "?_=" + Date.now(), {
+        cache: "no-store",
+        mode: "no-cors",
+        referrerPolicy: "no-referrer",
+        signal: controller.signal
+      })
+        .then(finish)
+        .catch(finish);
     });
   }
 
@@ -1629,7 +1770,7 @@
   function renderSections() {
     var html = "";
     html += renderRowSection("sec-ip", "出口 IP", "风控第一顺位", [
-      rowVm("ip", "出口 IP 质量", { sensitive: true, actions: [["↻ 重新检测", "run-ip"]] }),
+      rowVm("ip", "出口 IP 质量", { sensitive: true, actions: [["↻ 重测", "run-ip"]] }),
       rowVm("consistency", "一致性核对")
     ]);
     html += renderRowSection("sec-identity", "身份信号", "你像不像中国用户", [
@@ -1639,7 +1780,7 @@
       rowVm("font", "中文字体")
     ]);
     html += renderRowSection("sec-leak", "网络泄漏", "真实出口是否暴露", [
-      rowVm("webrtc", "WebRTC 泄漏", { sensitive: true, actions: [["↻ 重新检测", "run-webrtc"]] }),
+      rowVm("webrtc", "WebRTC 泄漏", { sensitive: true, actions: [["↻ 重测", "run-webrtc"]] }),
       rowVm("dns", "DNS 泄漏", {
         actions: [
           ["标准检测", "run-dns-std"],
@@ -1775,36 +1916,39 @@
     }
     var dns = state.dns;
     var html =
-      '<div class="advice"><div class="advice-label">' +
+      '<div class="dns-extra"><div class="dns-summary"><div class="advice-label">' +
       (dns.running ? "DNS 检测中" : dns.mode === "deep" ? "深度检测结果" : "标准检测结果") +
       "</div><p>" +
       escapeHtml(dns.summary || "正在等待 DNS 解析器返回结果…") +
       "</p></div>";
-    if (dns.yourIp) {
+    if (dns.yourIp || (dns.servers && dns.servers.length)) {
       html +=
-        '<div class="mini-row"><span class="dot ' +
-        statusClass(dns.status) +
-        '"></span><span class="mini-title sensitive">' +
-        escapeHtml(dns.yourIp.ip) +
-        '</span><span class="mini-value">' +
-        escapeHtml(dns.yourIp.sub) +
-        "</span></div>";
-    }
-    if (dns.servers && dns.servers.length) {
-      html += '<div class="path-list">';
-      dns.servers.forEach(function (server) {
+        '<div class="dns-table-wrap"><table class="dns-table"><thead><tr><th>地址</th><th>角色</th><th>地区 / ASN</th></tr></thead><tbody>';
+      if (dns.yourIp) {
         html +=
-          '<div class="mini-row"><span class="dot ' +
+          '<tr><td><span class="table-source"><span class="dot ' +
+          statusClass(dns.status) +
+          '"></span><span class="sensitive">' +
+          escapeHtml(dns.yourIp.ip) +
+          '</span></span></td><td>出口 IP</td><td>' +
+          escapeHtml(dns.yourIp.sub || "—") +
+          "</td></tr>";
+      }
+      (dns.servers || []).forEach(function (server) {
+        html +=
+          '<tr><td><span class="table-source"><span class="dot ' +
           (server.cn && !dns.exitIsChina ? "red" : "green") +
-          '"></span><span class="mini-title sensitive">' +
+          '"></span><span class="sensitive">' +
           escapeHtml(server.ip) +
-          '</span><span class="mini-value">' +
+          '</span></span></td><td>' +
+          (server.cn ? "中国解析器" : "DNS 解析器") +
+          "</td><td>" +
           escapeHtml(server.country + (server.asn ? " · " + server.asn : "")) +
-          "</span></div>";
+          "</td></tr>";
       });
-      html += "</div>";
+      html += "</tbody></table></div>";
     }
-    return html;
+    return html + "</div>";
   }
 
   function renderConnSection() {
@@ -1889,7 +2033,7 @@
       '<div class="panel"><div class="table-tools"><input id="multi-ip" value="' +
       escapeHtml(state.multiIp || "") +
       '" placeholder="' +
-      escapeHtml(state.myIp ? "本机当前IP：" + state.myIp + "（留空即查询）" : "本机当前IP 读取中，或输入任意 IP") +
+      escapeHtml(state.myIp ? state.myIp + "（本机当前IP）" : "本机当前IP 读取中，或输入任意 IP") +
       '" autocomplete="off" spellcheck="false"><button class="button" type="button" data-action="run-multi">查询</button></div><div class="summary-line">' +
       escapeHtml(state.multiSummary) +
       '</div><div class="table-wrap"><table class="data-table"><thead><tr><th>来源</th><th>地区</th><th>Geo</th><th>ASN</th><th>组织</th></tr></thead><tbody>' +
@@ -1933,7 +2077,7 @@
       renderSectionHead(
         "AI 路径",
         "访问 AI 站点时看到的 Cloudflare 出口",
-        renderSectionAction("↻ 重新检测", "run-aipath")
+        renderSectionAction("↻ 重测", "run-aipath")
       ) +
       '<div class="panel"><div class="path-list ai-path-list">' +
       rows
@@ -1973,7 +2117,7 @@
       renderSectionHead(
         "AI 状态",
         "服务故障排除",
-        renderSectionAction("↻ 重新检测", "run-aistatus")
+        renderSectionAction("↻ 重测", "run-aistatus")
       ) +
       '<div class="panel"><div class="status-list">' +
       rows
@@ -2009,7 +2153,8 @@
           { key: "设备内存", value: "检测中" },
           { key: "语言", value: "检测中" },
           { key: "时区", value: "检测中" },
-          { key: "Canvas 指纹", value: "检测中" }
+          { key: "Canvas 指纹", value: "检测中" },
+          { key: "音频指纹", value: "计算中" }
         ];
     return (
       '<section class="section" id="sec-fp">' +
@@ -2018,7 +2163,9 @@
       rows
         .map(function (row) {
           return (
-            '<div class="fingerprint-cell"><div class="fingerprint-key">' +
+            '<div class="fingerprint-cell ' +
+            (row.wide ? "is-wide" : "") +
+            '"><div class="fingerprint-key">' +
             escapeHtml(row.key) +
             '</div><div class="fingerprint-value ' +
             (row.sensitive ? "sensitive" : "") +
@@ -2266,6 +2413,7 @@
     recomputeConsistency();
     runIP();
     runWebRTC();
+    runDNS("std");
     runConn();
     runAipath();
     runAiStatus();

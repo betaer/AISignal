@@ -4,13 +4,13 @@ AI Signal Guard 是一个纯静态的浏览器端 AI 身份与网络信号自查
 
 访问地址：
 
-https://betaer.github.io/SignalGuard/
+https://betaer.github.io/AISignal/
 
 ## 覆盖检测
 
 - 综合信任分
 - 出口 IP 质量
-- 浏览器语言、系统时区、Emoji / 字体弱信号（兼容 CNSignal 口径）
+- 浏览器语言、系统时区、Emoji / 字体弱信号（兼容 AI Signal 口径）
 - WebRTC 泄漏
 - DNS 泄漏
 - 网络连通性
