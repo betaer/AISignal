@@ -2,7 +2,7 @@
 
 浏览器端 AI 账号网络与身份信号体检工具。打开网页即可检查出口 IP、DNS/WebRTC 泄漏、语言时区一致性、AI 站点路径、服务状态和浏览器指纹，适合在使用 ChatGPT、Claude、Gemini、Perplexity 等服务前做一次自查。
 
-[在线体验](https://betaer.github.io/AISignalGuard/) · [反馈问题](https://github.com/betaer/AISignalGuard/issues/new/choose) · [发布物料](docs/launch-kit.md)
+在线体验：<a href="https://betaer.github.io/AISignalGuard/" target="_blank" rel="noopener noreferrer">https://betaer.github.io/AISignalGuard/</a> · <a href="https://github.com/betaer/AISignalGuard/issues/new/choose" target="_blank" rel="noopener noreferrer">反馈问题</a> · <a href="https://github.com/betaer/AISignalGuard/blob/main/docs/launch-kit.md" target="_blank" rel="noopener noreferrer">发布物料</a>
 
 ⭐ If you like this project, please consider giving it a star!
 
