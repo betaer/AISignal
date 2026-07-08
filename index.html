@@ -6,17 +6,27 @@
     <title>AI Signal Guard · AI Signal browser analyzer</title>
     <meta
       name="description"
-      content="AI Signal Guard 是一个浏览器端 AI Signal 与网络信号自查工具，用于检测出口 IP、时区语言、WebRTC、DNS、AI 路径和浏览器指纹。"
+      content="AI Signal Guard 是一个浏览器端 AI 账号网络与身份信号体检工具，用于检测出口 IP、时区语言、WebRTC、DNS、AI 路径和浏览器指纹。"
     />
     <meta name="keywords" content="AI Signal Guard, AI Signal, browser signal analyzer, IP 检测, DNS 泄漏, WebRTC, AI 路径, 浏览器指纹" />
     <meta name="theme-color" content="#f7f7f5" />
     <meta property="og:title" content="AI Signal Guard" />
     <meta
       property="og:description"
-      content="AI Signal browser analyzer. 在浏览器里核对 IP、DNS、WebRTC、AI 路径和指纹一致性。"
+      content="浏览器端 AI 账号网络与身份信号体检。核对 IP、DNS、WebRTC、AI 路径和指纹一致性。"
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://betaer.github.io/AISignal/" />
+    <meta property="og:image" content="https://betaer.github.io/AISignal/assets/social-preview.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AI Signal Guard" />
+    <meta
+      name="twitter:description"
+      content="浏览器端 AI 账号网络与身份信号体检。核对 IP、DNS、WebRTC、AI 路径和指纹一致性。"
+    />
+    <meta name="twitter:image" content="https://betaer.github.io/AISignal/assets/social-preview.png" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-8YCMR5G9CN"></script>
@@ -83,11 +93,29 @@
         </div>
         <p class="score-summary" id="score-summary">正在运行本地与联网检测…</p>
 
+        <div class="score-share" aria-label="分享诊断结果">
+          <button class="button share-button share-button-primary" id="copy-summary" type="button">复制诊断摘要</button>
+          <button class="button share-button share-image" id="share-card" type="button">分享结果图</button>
+          <a
+            class="button share-button share-star"
+            href="https://github.com/betaer/AISignal"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub Star
+          </a>
+        </div>
+        <p class="share-note" id="share-note">摘要和图片只包含评分、判定口径和风险类别，不复制 IP、DNS、组织和指纹值。</p>
+
         <div class="score-controls" aria-label="判定口径">
           <span>判定口径</span>
           <div class="segmented" role="group" aria-label="地区判定口径">
-            <button class="segmented-button is-active" type="button" data-region="cn">仅中国大陆</button>
-            <button class="segmented-button" type="button" data-region="cnhk">含港澳</button>
+            <button class="segmented-button is-active" type="button" data-region="cn">
+              仅<span class="china-emphasis">中国大陆</span>
+            </button>
+            <button class="segmented-button" type="button" data-region="cnhk">
+              含<span class="china-emphasis">港澳</span>
+            </button>
           </div>
         </div>
 
@@ -99,12 +127,17 @@
         <div class="info-panel" id="rules-panel" hidden>
           <strong>评分口径：满分 100，命中即扣，出口 IP 取最重一项。</strong>
           <p>
-            重扣：出口 IP 在中国 -35 · 机房 / VPN 出口 -22 · 大陆直连 -20 · DNS
-            泄漏中国解析器 -15 · WebRTC 暴露真实 IP -12 · AI 路径出口在中国 -15。
+            重扣：出口 IP 在<span class="china-emphasis">中国</span> -35 · 机房 / VPN 出口 -22 ·
+            <span class="china-emphasis">大陆直连</span> -20 · DNS
+            泄漏<span class="china-emphasis">中国解析器</span> -15 · WebRTC 暴露真实 IP -12 · AI
+            路径出口在<span class="china-emphasis">中国</span> -15。
           </p>
           <p>
-            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 语言含中文 -4 · 时区在中国 -4 ·
-            Emoji / 字体弱信号各 -1。
+            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 语言含中文 -4 · 时区在<span
+              class="china-emphasis"
+              >中国</span
+            >
+            -4 · Emoji / 字体弱信号各 -1。
           </p>
         </div>
 

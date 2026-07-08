@@ -200,7 +200,11 @@
   }
 
   function highlightRiskText(value) {
-    return escapeHtml(value).replace(/(矛盾|异常)/g, '<strong class="risk-emphasis">$1</strong>');
+    var chinaPattern =
+      /(中国大陆|中国口径内|中国口径|中国解析器|中国出口|大陆直连|大陆探针|港澳|香港|澳门|大陆|中国|Hong Kong|Hongkong|Macao|Macau|China(?:\s+(?:Telecom|Unicom|Mobile))?|Chinanet|PRC|Asia\/(?:Shanghai|Urumqi|Chongqing|Harbin|Kashgar|Beijing|Hong_Kong|Macau)|\b(?:CN|HK|MO|AS4134|AS4837|AS9808)\b|\bzh(?!-)\b|\bzh-(?:CN|HK|MO|Hans|Hans-CN|Hant-HK|Hant-MO|Yue)\b|电信|联通|移动|广电|教育网)/gi;
+    return escapeHtml(value)
+      .replace(/(矛盾|异常)/g, '<strong class="risk-emphasis">$1</strong>')
+      .replace(chinaPattern, '<strong class="china-emphasis">$1</strong>');
   }
 
   function statusClass(status) {
@@ -1673,7 +1677,7 @@
     return "red";
   }
 
-  function summaryText() {
+  function collectRiskFlags() {
     var flags = [];
     var ip = state.rows.ip || {};
     if (ip.isCN) {
@@ -1710,6 +1714,11 @@
     ) {
       flags.push("AI 路径出口在中国");
     }
+    return flags;
+  }
+
+  function summaryText() {
+    var flags = collectRiskFlags();
     if (!Object.keys(state.rows).length) {
       return "正在运行本地与联网检测…";
     }
@@ -1724,6 +1733,379 @@
       (flags.length > 3 ? " 等。" : "。") +
       "展开下方各项查看规避建议。"
     );
+  }
+
+  function shareStatusLabel(status) {
+    return statusText[statusClass(status)] || "检测中";
+  }
+
+  function rowShareStatus(id) {
+    var row = state.rows[id] || {};
+    if (!Object.keys(row).length || row.status === "pending") {
+      return "检测中";
+    }
+    if (id === "ip") {
+      if (row.isCN) {
+        return "高危 · 出口在中国口径内";
+      }
+      if (row.host) {
+        return "一般 · 机房 / VPN / 代理池特征";
+      }
+      if (row.status === "green") {
+        return "可信 · 未见高风险出口";
+      }
+      return "一般 · 出口 IP 未完整测出";
+    }
+    if (id === "dns") {
+      if (state.dns.cnHit) {
+        return "高危 · 命中中国解析器";
+      }
+      if (row.status === "green") {
+        return "可信 · 未见中国解析器";
+      }
+      return shareStatusLabel(row.status) + " · " + (row.value || "未完整测出");
+    }
+    if (id === "webrtc") {
+      return shareStatusLabel(row.status) + " · " + (row.value || "未完整测出");
+    }
+    if (id === "consistency") {
+      return shareStatusLabel(row.status) + " · " + (row.value || "未完整测出");
+    }
+    return shareStatusLabel(row.status);
+  }
+
+  function networkShareStatus() {
+    var verdict = networkVerdict();
+    if (verdict.result === true) {
+      return "高危 · 疑似大陆直连";
+    }
+    if (verdict.result === false) {
+      return "可信 · 未见大陆直连";
+    }
+    return "检测中";
+  }
+
+  function aiPathShareStatus() {
+    if (!state.aipath.length) {
+      return "检测中";
+    }
+    if (
+      state.aipath.some(function (item) {
+        return item.status === "red";
+      })
+    ) {
+      return "高危 · 有 AI 站点路径指向中国";
+    }
+    if (
+      state.aipath.some(function (item) {
+        return item.status === "pending";
+      })
+    ) {
+      return "检测中";
+    }
+    return "可信 · 未见中国出口";
+  }
+
+  function diagnosticSummaryText() {
+    var hasRows = Object.keys(state.rows).length > 0;
+    var scoreText = hasRows ? state.score + "/100（" + statusText[scoreKey(state.score)] + "）" : "检测中";
+    var flags = collectRiskFlags();
+    return [
+      "AI Signal Guard 诊断摘要",
+      "信任分：" + scoreText,
+      "判定口径：" + diagnosticRegionLabel(),
+      "风险项：" + (flags.length ? flags.join(" / ") : "未发现明显暴露信号"),
+      "出口 IP：" + rowShareStatus("ip"),
+      "身份一致性：" + rowShareStatus("consistency"),
+      "WebRTC：" + rowShareStatus("webrtc"),
+      "DNS：" + rowShareStatus("dns"),
+      "网络连通：" + networkShareStatus(),
+      "AI 路径：" + aiPathShareStatus(),
+      "",
+      "在线检测：https://betaer.github.io/AISignal/",
+      "开源仓库：https://github.com/betaer/AISignal"
+    ].join("\n");
+  }
+
+  function diagnosticRegionLabel() {
+    return state.region === "cnhk" ? "含港澳" : "仅中国大陆";
+  }
+
+  function cardToneColor(key) {
+    if (key === "green") return "#4d9562";
+    if (key === "amber") return "#bd8628";
+    if (key === "red") return "#bd4a35";
+    return "#b7b7af";
+  }
+
+  function makeDiagnosticCardCanvas() {
+    var width = 1200;
+    var height = 630;
+    var scale = 2;
+    var canvas = document.createElement("canvas");
+    var ctx = canvas.getContext("2d");
+    var hasRows = Object.keys(state.rows).length > 0;
+    var score = hasRows ? state.score : 0;
+    var key = hasRows ? scoreKey(score) : "pending";
+    var tone = cardToneColor(key);
+    var flags = collectRiskFlags();
+    var riskText = flags.length ? flags.slice(0, 3).join(" / ") : "未发现明显暴露信号";
+    if (flags.length > 3) {
+      riskText += " 等";
+    }
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = "#f7f7f5";
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = "rgba(26, 26, 24, 0.06)";
+    ctx.lineWidth = 1;
+    for (var gx = 80; gx < width; gx += 160) {
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx, height);
+      ctx.stroke();
+    }
+    for (var gy = 90; gy < height; gy += 120) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(width, gy);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "rgba(77, 149, 98, 0.11)";
+    ctx.beginPath();
+    ctx.arc(1030, 120, 150, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(189, 134, 40, 0.11)";
+    ctx.beginPath();
+    ctx.arc(1048, 530, 132, 0, Math.PI * 2);
+    ctx.fill();
+
+    fillRoundedRect(ctx, 72, 70, 1056, 490, 30, "#ffffff");
+    strokeRoundedRect(ctx, 72, 70, 1056, 490, 30, "#deded7", 1);
+    fillRoundedRect(ctx, 72, 70, 1056, 70, 30, "#f7f7f4");
+    ctx.fillStyle = "#d95745";
+    ctx.beginPath();
+    ctx.arc(114, 105, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#d4a94d";
+    ctx.beginPath();
+    ctx.arc(140, 105, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#6ca878";
+    ctx.beginPath();
+    ctx.arc(166, 105, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#8f8f87";
+    ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.fillText("betaer.github.io/AISignal", 210, 112);
+
+    ctx.fillStyle = "#8f8f87";
+    ctx.font = "17px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.fillText("CLIENT-SIDE AI SIGNAL CHECKER", 120, 205);
+    ctx.fillStyle = "#1a1a18";
+    ctx.font = "700 64px -apple-system, BlinkMacSystemFont, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif";
+    ctx.fillText("AI Signal Guard", 120, 275);
+    ctx.fillStyle = "#3f3f39";
+    ctx.font = "28px -apple-system, BlinkMacSystemFont, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif";
+    ctx.fillText("浏览器端 AI 账号网络与身份信号体检", 120, 326);
+    ctx.fillStyle = "#5c5c55";
+    ctx.font = "22px -apple-system, BlinkMacSystemFont, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif";
+    ctx.fillText("IP · DNS · WebRTC · AI Path · Fingerprint · Trust Score", 120, 370);
+
+    drawScoreDial(ctx, 910, 292, score, tone, hasRows ? statusText[key] : "检测中");
+
+    drawCardPill(ctx, 120, 420, 182, "风险项", flags.length ? flags.length + " 项" : "0 项", tone);
+    drawCardPill(ctx, 318, 420, 180, "判定口径", diagnosticRegionLabel(), "#8f8f87");
+    drawCardPill(ctx, 514, 420, 250, "WebRTC", rowShareStatus("webrtc"), "#8f8f87");
+    drawCardPill(ctx, 780, 420, 232, "DNS", rowShareStatus("dns"), "#8f8f87");
+
+    ctx.fillStyle = "#3f3f39";
+    ctx.font = "600 20px -apple-system, BlinkMacSystemFont, Helvetica Neue, PingFang SC, Microsoft YaHei, Arial, sans-serif";
+    drawWrappedText(ctx, riskText, 120, 516, 620, 26, 2);
+    ctx.fillStyle = "#9a9a91";
+    ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.fillText("脱敏结果图 · 不含 IP / DNS / 组织 / 指纹值", 120, 540);
+    ctx.fillText("https://github.com/betaer/AISignal", 826, 540);
+
+    return canvas;
+  }
+
+  function drawScoreDial(ctx, cx, cy, score, tone, label) {
+    var radius = 96;
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = "#e7e7e2";
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = tone;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (score / 100));
+    ctx.stroke();
+    ctx.lineCap = "butt";
+    ctx.fillStyle = "#1a1a18";
+    ctx.font = "700 64px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(String(score), cx, cy + 10);
+    ctx.fillStyle = tone;
+    ctx.font = "700 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.fillText(label.toUpperCase(), cx, cy + 52);
+    ctx.textAlign = "left";
+  }
+
+  function drawCardPill(ctx, x, y, width, label, value, tone) {
+    fillRoundedRect(ctx, x, y, width, 62, 12, "#ffffff");
+    strokeRoundedRect(ctx, x, y, width, 62, 12, "#deded7", 1);
+    ctx.fillStyle = "#a3a39b";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.fillText(label, x + 18, y + 23);
+    ctx.fillStyle = tone;
+    ctx.font = "600 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    drawWrappedText(ctx, value, x + 18, y + 47, width - 36, 18, 1);
+  }
+
+  function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+    var chars = Array.from(String(text || ""));
+    var lines = [];
+    var line = "";
+    chars.forEach(function (char) {
+      var next = line + char;
+      if (line && ctx.measureText(next).width > maxWidth) {
+        lines.push(line);
+        line = char;
+        return;
+      }
+      line = next;
+    });
+    if (line) {
+      lines.push(line);
+    }
+    if (maxLines && lines.length > maxLines) {
+      lines = lines.slice(0, maxLines);
+      var last = lines[lines.length - 1] || "";
+      while (last.length && ctx.measureText(last + "…").width > maxWidth) {
+        last = last.slice(0, -1);
+      }
+      lines[lines.length - 1] = last + "…";
+    }
+    lines.forEach(function (item, index) {
+      ctx.fillText(item, x, y + index * lineHeight);
+    });
+    return y + lines.length * lineHeight;
+  }
+
+  function roundedRectPath(ctx, x, y, width, height, radius) {
+    var r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function fillRoundedRect(ctx, x, y, width, height, radius, fill) {
+    roundedRectPath(ctx, x, y, width, height, radius);
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  function strokeRoundedRect(ctx, x, y, width, height, radius, stroke, lineWidth) {
+    roundedRectPath(ctx, x, y, width, height, radius);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineWidth || 1;
+    ctx.stroke();
+  }
+
+  function canvasToPngBlob(canvas) {
+    return new Promise(function (resolve, reject) {
+      if (canvas.toBlob) {
+        canvas.toBlob(function (blob) {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("empty canvas blob"));
+          }
+        }, "image/png");
+        return;
+      }
+      try {
+        resolve(dataUrlToBlob(canvas.toDataURL("image/png")));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    var parts = dataUrl.split(",");
+    var meta = parts[0] || "";
+    var mimeMatch = meta.match(/data:([^;]+)/);
+    var mime = mimeMatch ? mimeMatch[1] : "image/png";
+    var binary = window.atob(parts[1] || "");
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mime });
+  }
+
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  function shareDiagnosticCard() {
+    var canvas = makeDiagnosticCardCanvas();
+    state.copied = "share-card:working";
+    render();
+    canvasToPngBlob(canvas)
+      .then(function (blob) {
+        var filename = "ai-signal-guard-summary.png";
+        var file =
+          typeof File === "function" ? new File([blob], filename, { type: "image/png" }) : null;
+        var shareFiles = file ? { files: [file] } : null;
+        if (file && navigator.share && navigator.canShare && navigator.canShare(shareFiles)) {
+          var sharePromise = navigator.share({
+            files: [file],
+            title: "AI Signal Guard 诊断摘要",
+            text: "AI Signal Guard 脱敏诊断图",
+            url: "https://betaer.github.io/AISignal/"
+          });
+          flashCopiedState("share-card");
+          return sharePromise
+            .catch(function (err) {
+              if (err && err.name === "AbortError") {
+                flashCopiedState("share-card:cancelled");
+                return;
+              }
+              downloadBlob(blob, filename);
+              flashCopiedState("share-card:downloaded");
+            });
+        }
+        downloadBlob(blob, filename);
+        flashCopiedState("share-card:downloaded");
+      })
+      .catch(function () {
+        flashCopiedState("share-card:failed");
+      });
   }
 
   function render() {
@@ -1772,6 +2154,30 @@
     $("#score-ring").style.strokeDashoffset =
       RING_CIRCUMFERENCE * (1 - (Object.keys(state.rows).length ? state.displayScore : 0) / 100);
     $("#score-summary").innerHTML = highlightRiskText(summaryText());
+    var copySummary = $("#copy-summary");
+    if (copySummary) {
+      copySummary.textContent =
+        state.copied === "diagnostic-summary"
+          ? "已复制摘要"
+          : state.copied === "diagnostic-summary:failed"
+            ? "复制失败"
+            : "复制诊断摘要";
+    }
+    var shareCard = $("#share-card");
+    if (shareCard) {
+      shareCard.textContent =
+        state.copied === "share-card:working"
+          ? "生成图片…"
+          : state.copied === "share-card"
+            ? "已打开分享"
+            : state.copied === "share-card:downloaded"
+              ? "已下载图片"
+              : state.copied === "share-card:cancelled"
+                ? "已取消"
+                : state.copied === "share-card:failed"
+                  ? "生成失败"
+                  : "分享结果图";
+    }
   }
 
   function renderSections() {
@@ -1840,7 +2246,7 @@
       '<div class="section-head"><div class="section-kicker"><span class="section-title">' +
       escapeHtml(title) +
       '</span><span class="section-sub">' +
-      escapeHtml(sub) +
+      highlightRiskText(sub) +
       "</span></div>" +
       (action || "") +
       "</div>"
@@ -1944,7 +2350,7 @@
           '"></span><span class="sensitive">' +
           escapeHtml(dns.yourIp.ip) +
           '</span></span></td><td>出口 IP</td><td>' +
-          escapeHtml(dns.yourIp.sub || "—") +
+          highlightRiskText(dns.yourIp.sub || "—") +
           "</td></tr>";
       }
       (dns.servers || []).forEach(function (server) {
@@ -1954,9 +2360,9 @@
           '"></span><span class="sensitive">' +
           escapeHtml(server.ip) +
           '</span></span></td><td>' +
-          (server.cn ? "中国解析器" : "DNS 解析器") +
+          (server.cn ? highlightRiskText("中国解析器") : "DNS 解析器") +
           "</td><td>" +
-          escapeHtml(server.country + (server.asn ? " · " + server.asn : "")) +
+          highlightRiskText(server.country + (server.asn ? " · " + server.asn : "")) +
           "</td></tr>";
       });
       html += "</tbody></table></div>";
@@ -2043,7 +2449,7 @@
       '" placeholder="' +
       escapeHtml(state.myIp ? state.myIp + "（本机当前IP）" : "本机当前IP 读取中，或输入任意 IP") +
       '" autocomplete="off" spellcheck="false"><button class="button" type="button" data-action="run-multi">查询</button></div><div class="summary-line">' +
-      escapeHtml(state.multiSummary) +
+      highlightRiskText(state.multiSummary) +
       '</div><div class="table-wrap"><table class="data-table"><thead><tr><th>来源</th><th>地区</th><th>Geo</th><th>ASN</th><th>组织</th></tr></thead><tbody>' +
       rows
         .map(function (row) {
@@ -2054,13 +2460,13 @@
             escapeHtml(row.source) +
             (row.mismatch ? '<span class="mismatch">冲突</span>' : "") +
             "</span></td><td>" +
-            escapeHtml(row.country || "—") +
+            highlightRiskText(row.country || "—") +
             "</td><td>" +
-            escapeHtml(row.geo || "—") +
+            highlightRiskText(row.geo || "—") +
             "</td><td>" +
-            escapeHtml(row.asn || "—") +
+            highlightRiskText(row.asn || "—") +
             '</td><td class="sensitive">' +
-            escapeHtml(row.org || "—") +
+            highlightRiskText(row.org || "—") +
             "</td></tr>"
           );
         })
@@ -2100,7 +2506,7 @@
             '</span></span><span class="mini-value sensitive" title="' +
             escapeHtml(row.host) +
             '">' +
-            escapeHtml(row.value) +
+            highlightRiskText(row.value) +
             "</span></div>"
           );
         })
@@ -2180,7 +2586,7 @@
             '" title="' +
             escapeHtml(row.value) +
             '">' +
-            escapeHtml(row.value) +
+            highlightRiskText(row.value) +
             "</div></div>"
           );
         })
@@ -2197,15 +2603,29 @@
           "<tr><td><code>" +
           escapeHtml(row[0]) +
           "</code></td><td>" +
-          escapeHtml(row[1]) +
+          highlightRiskText(row[1]) +
           "</td></tr>"
         );
       })
       .join("");
+    var traceIntro =
+      highlightRiskText("浏览器无法执行 traceroute（需 ICMP / 原始套接字，JS 一律被禁）。在本机终端先按需安装，再运行追踪；") +
+      "<code>mtr</code>" +
+      highlightRiskText(" 需 ") +
+      "<code>sudo</code>" +
+      highlightRiskText("。看路径中是否出现归属中国（CN）、或 ASN 为电信 AS4134 / 联通 AS4837 / 移动 AS9808 的跳。");
+    var traceNote =
+      highlightRiskText("若结果全是 ") +
+      "<code>* * *</code>" +
+      highlightRiskText(
+        "，或 claude.ai 解析 / 跳点落在下方网段，通常说明请求走的是代理 Fake-IP、CGNAT、私网网关或本地隧道，本机看不到真实公网路径。此时不要把这些地址当成真实出口；继续关注后续是否出现中国（CN）归属，或电信 AS4134 / 联通 AS4837 / 移动 AS9808。"
+      );
     return (
       '<section class="section" id="sec-trace">' +
       renderSectionHead("路由追踪", "本机命令复核") +
-      '<div class="panel trace-panel"><p class="trace-intro">浏览器无法执行 traceroute（需 ICMP / 原始套接字，JS 一律被禁）。在本机终端先按需安装，再运行追踪；<code>mtr</code> 需 <code>sudo</code>。看路径中是否出现归属中国（CN）、或 ASN 为电信 AS4134 / 联通 AS4837 / 移动 AS9808 的跳。</p><div class="trace-tabs">' +
+      '<div class="panel trace-panel"><p class="trace-intro">' +
+      traceIntro +
+      '</p><div class="trace-tabs">' +
       traceTabs
         .map(function (tab, index) {
           return (
@@ -2238,7 +2658,9 @@
           );
         })
         .join("") +
-      '</div><div class="trace-note"><strong>Fake-IP / 内网地址兼容判断</strong><p>若结果全是 <code>* * *</code>，或 claude.ai 解析 / 跳点落在下方网段，通常说明请求走的是代理 Fake-IP、CGNAT、私网网关或本地隧道，本机看不到真实公网路径。此时不要把这些地址当成真实出口；继续关注后续是否出现中国（CN）归属，或电信 AS4134 / 联通 AS4837 / 移动 AS9808。</p><div class="trace-range-wrap"><table class="trace-range-table"><thead><tr><th>网段</th><th>用途 / 含义</th></tr></thead><tbody>' +
+      '</div><div class="trace-note"><strong>Fake-IP / 内网地址兼容判断</strong><p>' +
+      traceNote +
+      '</p><div class="trace-range-wrap"><table class="trace-range-table"><thead><tr><th>网段</th><th>用途 / 含义</th></tr></thead><tbody>' +
       fakeIpRows +
       "</tbody></table></div></div></div></section>"
     );
@@ -2250,6 +2672,10 @@
       render();
     });
     $("#run-all").addEventListener("click", runAll);
+    $("#copy-summary").addEventListener("click", function () {
+      copyText(diagnosticSummaryText(), "diagnostic-summary");
+    });
+    $("#share-card").addEventListener("click", shareDiagnosticCard);
     document.querySelectorAll("[data-region]").forEach(function (button) {
       button.addEventListener("click", function () {
         state.region = button.dataset.region;
@@ -2319,24 +2745,40 @@
     });
   }
 
-  function copyText(text) {
+  function copyText(text, copiedKey) {
+    var key = copiedKey || text;
     function done() {
-      state.copied = text;
-      render();
-      window.setTimeout(function () {
-        state.copied = "";
-        render();
-      }, 1500);
+      flashCopiedState(key);
+    }
+    function failed() {
+      flashCopiedState(key + ":failed");
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(function () {
-        fallbackCopy(text);
-        done();
+        if (fallbackCopy(text)) {
+          done();
+        } else {
+          failed();
+        }
       });
       return;
     }
-    fallbackCopy(text);
-    done();
+    if (fallbackCopy(text)) {
+      done();
+    } else {
+      failed();
+    }
+  }
+
+  function flashCopiedState(key) {
+    state.copied = key;
+    render();
+    window.setTimeout(function () {
+      if (state.copied === key) {
+        state.copied = "";
+        render();
+      }
+    }, 1500);
   }
 
   function fallbackCopy(text) {
@@ -2347,10 +2789,12 @@
     textarea.style.top = "-9999px";
     document.body.appendChild(textarea);
     textarea.select();
+    var ok = false;
     try {
-      document.execCommand("copy");
+      ok = document.execCommand("copy");
     } catch (err) {}
     document.body.removeChild(textarea);
+    return ok;
   }
 
   function updateActiveNav() {

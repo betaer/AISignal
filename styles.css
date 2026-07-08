@@ -372,7 +372,8 @@ input:focus-visible {
   text-wrap: pretty;
 }
 
-.risk-emphasis {
+.risk-emphasis,
+.china-emphasis {
   color: var(--red);
   font-weight: 750;
 }
@@ -434,6 +435,61 @@ input:focus-visible {
   color: var(--muted);
 }
 
+.score-share {
+  display: grid;
+  width: min(100%, 590px);
+  grid-template-columns: minmax(220px, 1.25fr) repeat(2, minmax(124px, 0.75fr));
+  gap: 10px;
+  margin: 20px auto 0;
+}
+
+.share-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border-bottom: 0;
+  font-weight: 650;
+  padding: 0 15px;
+  white-space: nowrap;
+}
+
+.share-button-primary {
+  border-color: var(--ink);
+  background: var(--ink);
+  box-shadow: 0 14px 34px rgba(31, 31, 25, 0.14);
+  color: #ffffff;
+}
+
+.share-button-primary:hover {
+  border-color: #000000;
+  background: #000000;
+  color: #ffffff;
+}
+
+.share-image {
+  background: #ffffff;
+}
+
+.share-star {
+  border-color: #cfcfc8;
+  background: #ffffff;
+  color: var(--ink-2);
+}
+
+.share-star:hover {
+  border-color: #babaae;
+  background: #fbfbf8;
+  color: var(--ink);
+}
+
+.share-note {
+  max-width: 520px;
+  margin: 10px auto 0;
+  color: var(--muted-2);
+  font: 11px/1.55 var(--mono);
+}
+
 .info-panel {
   margin-top: 18px;
   border: 1px solid var(--line);
@@ -441,7 +497,7 @@ input:focus-visible {
   background: #ffffff;
   box-shadow: 0 18px 50px rgba(31, 31, 25, 0.05);
   color: #55554e;
-  font-size: 12.5px;
+  font-size: 11px;
   line-height: 1.7;
   padding: 16px 18px;
   text-align: left;
@@ -574,7 +630,7 @@ input:focus-visible {
 
 .row-name {
   color: #26261f;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 550;
   white-space: nowrap;
 }
@@ -640,7 +696,7 @@ input:focus-visible {
 .row-detail {
   margin: 0;
   color: #5c5c55;
-  font-size: 12.5px;
+  font-size: 11px;
   line-height: 1.68;
   white-space: pre-line;
 }
@@ -663,7 +719,7 @@ input:focus-visible {
 .advice p {
   margin: 0;
   color: var(--ink-2);
-  font-size: 12.5px;
+  font-size: 11px;
   line-height: 1.65;
 }
 
@@ -750,14 +806,14 @@ input:focus-visible {
   min-width: 0;
   overflow: hidden;
   color: var(--ink-2);
-  font: 12.5px/1.25 var(--mono);
+  font: 11px/1.25 var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .conn-card-status {
   color: var(--muted);
-  font: 11.5px/1.25 var(--mono);
+  font: 11px/1.25 var(--mono);
   white-space: nowrap;
 }
 
@@ -843,7 +899,7 @@ input:focus-visible {
 
 .summary-line {
   color: #5c5c55;
-  font-size: 12.5px;
+  font-size: 11px;
   line-height: 1.6;
   padding: 12px 15px;
 }
@@ -875,7 +931,7 @@ input:focus-visible {
 
 .data-table td {
   color: var(--ink-2);
-  font: 11.5px/1.45 var(--mono);
+  font: 11px/1.45 var(--mono);
 }
 
 .table-source {
@@ -908,7 +964,7 @@ input:focus-visible {
 .dns-summary p {
   margin: 0;
   color: var(--ink-2);
-  font-size: 12.5px;
+  font-size: 11px;
   line-height: 1.65;
 }
 
@@ -945,7 +1001,7 @@ input:focus-visible {
 
 .dns-table td {
   color: var(--ink-2);
-  font: 11.5px/1.45 var(--mono);
+  font: 11px/1.45 var(--mono);
 }
 
 .dns-table td:nth-child(1) {
@@ -979,7 +1035,7 @@ input:focus-visible {
 .mini-title {
   min-width: 0;
   color: #26261f;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -989,7 +1045,7 @@ input:focus-visible {
 .mini-value {
   min-width: 0;
   color: var(--muted);
-  font: 11.5px/1.45 var(--mono);
+  font: 11px/1.45 var(--mono);
   overflow: hidden;
   text-align: right;
   text-overflow: ellipsis;
@@ -1087,13 +1143,13 @@ input:focus-visible {
 
 .fingerprint-value {
   color: var(--ink-2);
-  font: 13.5px/1.55 var(--mono);
+  font: 11px/1.55 var(--mono);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .fingerprint-cell.is-wide .fingerprint-value {
-  font-size: 12.5px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
@@ -1104,8 +1160,8 @@ input:focus-visible {
 .trace-intro {
   margin: 0;
   color: #5c5c55;
-  font-size: 15px;
-  line-height: 1.75;
+  font-size: 11px;
+  line-height: 1.68;
   padding: 28px 40px 24px;
 }
 
@@ -1159,13 +1215,13 @@ input:focus-visible {
 .command-box {
   display: grid;
   width: 100%;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 64px;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-top: 10px;
   border-radius: 10px;
   background: #f7f7f4;
-  padding: 9px 10px 9px 18px;
+  padding: 9px 12px 9px 18px;
 }
 
 .command-code {
@@ -1176,7 +1232,7 @@ input:focus-visible {
   border-radius: 0;
   background: transparent;
   color: var(--ink-2);
-  font: 13px/1.45 var(--mono);
+  font: 11px/1.45 var(--mono);
   padding: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1187,21 +1243,38 @@ input:focus-visible {
 }
 
 .command-box .copy-button {
-  background: #ffffff;
+  min-width: 64px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 11px/1 var(--mono);
+  padding: 0;
+  text-align: right;
+}
+
+.command-box .copy-button:hover {
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.command-box .copy-button.is-copied {
+  background: transparent;
+  color: var(--green);
+  font-weight: 650;
 }
 
 .trace-note {
   margin: 24px 40px 0;
   color: var(--muted);
-  font-size: 13.5px;
-  line-height: 1.75;
+  font-size: 11px;
+  line-height: 1.68;
 }
 
-.trace-note strong {
+.trace-note > strong {
   display: block;
   margin-bottom: 7px;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 650;
 }
 
@@ -1240,7 +1313,7 @@ input:focus-visible {
 
 .trace-range-table td {
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
@@ -1321,6 +1394,17 @@ input:focus-visible {
     padding-top: 46px;
   }
 
+  .score-share {
+    grid-template-columns: 1fr;
+    margin-right: auto;
+    margin-left: auto;
+    max-width: 278px;
+  }
+
+  .share-button {
+    width: 100%;
+  }
+
   .section {
     margin-top: 42px;
   }
@@ -1364,7 +1448,7 @@ input:focus-visible {
   }
 
   .conn-card-host {
-    font-size: 12.5px;
+    font-size: 11px;
   }
 
   .fingerprint-cell {
