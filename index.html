@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignalGuard · AI identity browser signal analyzer</title>
+    <meta
+      name="description"
+      content="SignalGuard 是一个浏览器端 AI 身份与网络信号自查工具，用于检测出口 IP、时区语言、WebRTC、DNS、AI 路径和浏览器指纹。"
+    />
+    <meta name="theme-color" content="#f7f7f5" />
+    <meta property="og:title" content="SignalGuard" />
+    <meta
+      property="og:description"
+      content="AI identity browser signal analyzer. 在浏览器里核对 IP、DNS、WebRTC、AI 路径和指纹一致性。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://betaer.github.io/SignalGuard/" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-8YCMR5G9CN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-8YCMR5G9CN");
+    </script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到检测结果</a>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand-lockup" aria-label="SignalGuard">
+          <span class="brand-mark" aria-hidden="true">SG</span>
+          <span class="brand-text">SignalGuard</span>
+          <span class="brand-sub">AI identity · browser signal analyzer</span>
+        </div>
+
+        <div class="top-actions">
+          <button class="text-action" id="privacy-toggle" type="button">◎ 隐私模式</button>
+          <button class="text-action" id="run-all" type="button">↻ 重新检测</button>
+          <a
+            class="github-link"
+            href="https://github.com/betaer/SignalGuard"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="打开 GitHub 仓库"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path
+                d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"
+              ></path>
+              <path d="M9 18c-4.51 2-5-2-7-2"></path>
+            </svg>
+            <span id="star-count">Star</span>
+          </a>
+        </div>
+      </div>
+
+      <nav class="anchor-nav" aria-label="检测分区">
+        <div class="nav-scroll" id="nav-list"></div>
+      </nav>
+    </header>
+
+    <main class="shell" id="main">
+      <section class="score-stage" id="sec-score" aria-labelledby="score-title">
+        <p class="eyebrow" id="score-title">综合信任评估 · Trust Score</p>
+        <div class="score-ring" aria-label="综合信任分">
+          <svg viewBox="0 0 120 120" role="img" aria-hidden="true">
+            <circle class="score-track" cx="60" cy="60" r="52"></circle>
+            <circle class="score-value" id="score-ring" cx="60" cy="60" r="52"></circle>
+          </svg>
+          <div class="score-copy">
+            <span class="score-number" id="score-number">··</span>
+            <span class="score-status" id="score-status">检测中</span>
+          </div>
+        </div>
+        <p class="score-summary" id="score-summary">正在运行本地与联网检测…</p>
+
+        <div class="score-controls" aria-label="判定口径">
+          <span>判定口径</span>
+          <div class="segmented" role="group" aria-label="地区判定口径">
+            <button class="segmented-button is-active" type="button" data-region="cn">仅中国大陆</button>
+            <button class="segmented-button" type="button" data-region="cnhk">含港澳</button>
+          </div>
+        </div>
+
+        <div class="score-links">
+          <button class="underlink" type="button" data-panel="rules">评分规则</button>
+          <button class="underlink" type="button" data-panel="privacy">隐私说明</button>
+        </div>
+
+        <div class="info-panel" id="rules-panel" hidden>
+          <strong>评分口径：满分 100，命中即扣，出口 IP 取最重一项。</strong>
+          <p>
+            重扣：出口 IP 在中国 -35 · 机房 / VPN 出口 -22 · 大陆直连 -20 · DNS
+            泄漏中国解析器 -15 · WebRTC 暴露真实 IP -12 · AI 路径出口在中国 -15。
+          </p>
+          <p>轻扣：信号前后矛盾 -8 · 语言含中文 -4 · 时区在中国 -4 · Emoji / 字体弱信号各 -1。</p>
+        </div>
+
+        <div class="info-panel" id="privacy-panel" hidden>
+          <strong>本地检测留在浏览器内，联网检测会访问对应第三方服务。</strong>
+          <p>
+            本地项包括语言、时区、Emoji / 字体渲染和浏览器指纹。联网项包括 IP 情报、WebRTC
+            STUN、连通性探测、DNS 泄漏检测、AI 路径和 AI 服务状态。
+          </p>
+          <p>顶栏隐私模式会模糊 IP、组织、DNS 等敏感字段，方便截图讨论。</p>
+        </div>
+      </section>
+
+      <div id="section-root"></div>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <span>SignalGuard</span>
+        <span>浏览器端隐私自查与安全研究工具</span>
+      </div>
+      <div>
+        <a href="#sec-score">回到顶部</a>
+        <a href="https://github.com/betaer/SignalGuard/issues" target="_blank" rel="noreferrer">反馈问题</a>
+        <a href="https://github.com/betaer/SignalGuard" target="_blank" rel="noreferrer">源码</a>
+      </div>
+    </footer>
+  </body>
+</html>
