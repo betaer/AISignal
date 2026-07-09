@@ -617,7 +617,7 @@
         status: languageFlag ? "amber" : "green",
         value: languages.filter(Boolean).join(" · ") || "未知",
         detail:
-          "浏览器会把首选语言发送给大部分网站。当前采用 AI Signal 兼容口径：" +
+          "浏览器会把首选语言发送给大部分网站。当前采用 AI Signal Guard 兼容口径：" +
           regionLabel() +
           "。语言不一定代表真实地区，但它和出口 IP、账号资料不一致时，会成为画像矛盾。"
       });
@@ -641,7 +641,7 @@
         status: emoji.flag === true ? "amber" : emoji.flag === null ? "pending" : "green",
         value: emoji.value,
         detail:
-          "AI Signal 兼容逻辑会先用 😀 确认彩色 Emoji 可用，再看 🇹🇼 是否被渲染为黑白字母或完全不渲染。Windows 不适用，Canvas 被保护时也不误报。\n" +
+          "AI Signal Guard 兼容逻辑会先用 😀 确认彩色 Emoji 可用，再看 🇹🇼 是否被渲染为黑白字母或完全不渲染。Windows 不适用，Canvas 被保护时也不误报。\n" +
           emoji.detail
       });
 
@@ -665,7 +665,7 @@
       return {
         flag: null,
         value: "Windows 不适用",
-        detail: "Windows 对国旗 Emoji 的支持策略不同，AI Signal 不用此项判断。"
+        detail: "Windows 对国旗 Emoji 的支持策略不同，AI Signal Guard 不用此项判断。"
       };
     }
     try {
@@ -682,14 +682,14 @@
         return {
           flag: true,
           value: "旗帜未渲染",
-          detail: "普通 Emoji 正常，但 🇹🇼 完全不渲染，符合 AI Signal 的大陆设备弱特征。"
+          detail: "普通 Emoji 正常，但 🇹🇼 完全不渲染，符合 AI Signal Guard 的大陆设备弱特征。"
         };
       }
       if (flag.isMono) {
         return {
           flag: true,
           value: "旗帜黑白回退",
-          detail: "普通 Emoji 正常，但 🇹🇼 渲染为黑白字母回退，符合 AI Signal 的大陆设备弱特征。"
+          detail: "普通 Emoji 正常，但 🇹🇼 渲染为黑白字母回退，符合 AI Signal Guard 的大陆设备弱特征。"
         };
       }
       return {
@@ -1021,6 +1021,11 @@
         return getJson("https://api64.ipify.org?format=json", 7000).then(function (payload) {
           return normalizeIpPayload(payload, "ipify64.org");
         });
+      },
+      function () {
+        return getJson("https://api6.ipify.org?format=json", 7000).then(function (payload) {
+          return normalizeIpPayload(payload, "ipify6.org");
+        });
       }
     ];
     var multiStarted = false;
@@ -1063,14 +1068,21 @@
       var cn = isChinaCountry(result.cc);
       var host = isHostingOrg(orgText);
       var status = !hasGeo ? "amber" : cn ? "red" : host ? "amber" : "green";
-      var value =
-        ipResults.length > 1
-          ? ipResults
-              .map(function (item) {
-                return ipVersionLabel(item.ip) + " " + item.ip;
-              })
-              .join(" · ")
-          : [result.ip, result.cc || result.country, result.org].filter(Boolean).join(" · ");
+      var value = formatExitIpHeadline(ipResults, result);
+      var detail =
+        "出口 IP 是平台最先看到的信号。中国大陆 / 港澳口径由上方切换决定；机房、云厂商、VPN 和代理池会被视为中风险。\n出口 IP：\n" +
+        formatExitIpHeadline(ipResults, result);
+      if (ipResults.length > 1) {
+        detail += "\n\n双栈来源明细：\n" + formatExitIpList(ipResults);
+      } else {
+        detail +=
+          "\n地区：" +
+          (result.country || result.cc || "未知") +
+          "\nASN：" +
+          (result.asn || "未知") +
+          "\n组织：" +
+          (result.org || "未知");
+      }
       setRow("ip", {
         status: status,
         value: value,
@@ -1083,16 +1095,7 @@
           return item.ip;
         }),
         org: result.org,
-        detail:
-          "出口 IP 是平台最先看到的信号。中国大陆 / 港澳口径由上方切换决定；机房、云厂商、VPN 和代理池会被视为中风险。\nIP：" +
-          result.ip +
-          (ipResults.length > 1 ? "\n检测到双栈出口：\n" + formatExitIpList(ipResults) : "") +
-          "\n地区：" +
-          (result.country || result.cc || "未知") +
-          "\nASN：" +
-          (result.asn || "未知") +
-          "\n组织：" +
-          (result.org || "未知")
+        detail: detail
       });
       recomputeConsistency();
       maybeRunMulti(result.ip || "");
@@ -1207,21 +1210,84 @@
     return "IP";
   }
 
+  function fieldLine(label, value) {
+    return label + "：" + (value || "—");
+  }
+
+  function uniqueValues(values) {
+    var seen = {};
+    return (values || []).filter(function (value) {
+      if (!value || seen[value]) {
+        return false;
+      }
+      seen[value] = true;
+      return true;
+    });
+  }
+
+  function formatIpLines(ips) {
+    var list = uniqueValues(ips);
+    return (
+      list
+        .map(function (ip) {
+          return fieldLine(ipVersionLabel(ip), ip);
+        })
+        .join("\n") || "未知"
+    );
+  }
+
+  function formatWebrtcCandidateLines(ips, exitIps) {
+    var exitSet = {};
+    uniqueValues(exitIps).forEach(function (ip) {
+      exitSet[ip] = true;
+    });
+    return (
+      uniqueValues(ips)
+        .map(function (ip) {
+          return fieldLine(ipVersionLabel(ip), ip) + (exitSet[ip] ? "（与出口一致）" : "（出口列表外）");
+        })
+        .join("\n") || "无"
+    );
+  }
+
+  function formatExitIpHeadline(results, fallback) {
+    var list = results && results.length ? results : fallback ? [fallback] : [];
+    if (list.length > 1) {
+      return formatIpLines(
+        list.map(function (item) {
+          return item.ip;
+        })
+      );
+    }
+    var item = list[0] || {};
+    return [
+      fieldLine(ipVersionLabel(item.ip), item.ip),
+      item.country || item.cc ? fieldLine("地区", item.country || item.cc) : "",
+      item.org ? fieldLine("组织", item.org) : ""
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
   function formatExitIpList(results) {
     return results
       .map(function (item) {
-        return (
-          ipVersionLabel(item.ip) +
-          "：" +
-          item.ip +
-          "（" +
-          [item.source, item.country || item.cc || "未知地区", item.asn || "未知 ASN", item.org || "未知组织"]
-            .filter(Boolean)
-            .join(" · ") +
-          "）"
-        );
+        return [
+          fieldLine(ipVersionLabel(item.ip), item.ip),
+          fieldLine("来源", item.source),
+          fieldLine("地区", item.country || item.cc || "未知地区"),
+          fieldLine("ASN", item.asn || "未知 ASN"),
+          fieldLine("组织", item.org || "未知组织")
+        ].join("\n");
       })
-      .join("\n");
+      .join("\n\n");
+  }
+
+  function formatAiPathValue(ips, locs) {
+    var cleanIps = uniqueValues(ips);
+    var cleanLocs = uniqueValues(locs);
+    var loc = cleanLocs.length > 1 ? cleanLocs.join(" / ") : cleanLocs[0] || "?";
+    return formatIpLines(cleanIps) + "\n" + fieldLine("地区", loc);
   }
 
   function recomputeConsistency() {
@@ -1247,7 +1313,7 @@
     if (!ip.isCN && issues.length) {
       setRow("consistency", {
         status: "red",
-        value: "矛盾 · 一眼假",
+        value: "信号矛盾",
         flag: true,
         detail:
           "出口 IP 不在当前中国口径内，但 " +
@@ -1341,20 +1407,33 @@
       var hiddenHosts = found.filter(isMdnsAddress);
       var ipRow = state.rows.ip || {};
       var exitIps = (ipRow.ips && ipRow.ips.length ? ipRow.ips : [ipRow.ip]).filter(Boolean);
-      var leak = publicIps.some(function (ip) {
+      var unmatchedPublicIps = publicIps.filter(function (ip) {
         return exitIps.length && exitIps.indexOf(ip) < 0;
       });
+      var leak = unmatchedPublicIps.length > 0;
       var hiddenCount = hiddenHosts.length + privateIps.length;
-      if (leak) {
+      if (publicIps.length && !exitIps.length) {
+        setRow("webrtc", {
+          status: "amber",
+          value: "待出口 IP 核对",
+          flag: false,
+          detail:
+            "WebRTC 看到了公网候选，但当前出口 IP 还没有完成读取，暂时无法判断它是否为代理外地址。\n公网候选：\n" +
+            formatIpLines(publicIps) +
+            (hiddenCount ? "\n另有 " + hiddenCount + " 个内网 / 浏览器隐藏候选，单独看不构成泄漏。" : "")
+        });
+      } else if (leak) {
         setRow("webrtc", {
           status: "red",
-          value: "发现真实公网候选",
+          value: "发现出口外公网候选",
           flag: true,
           detail:
-            "WebRTC 返回了一个和出口 IP 不同的公网地址，网站可能绕过代理看到你的真实网络。\n真实公网候选：" +
-            publicIps.join(" / ") +
-            "\n当前出口 IP：" +
-            (exitIps.join(" / ") || "未知") +
+            "WebRTC 返回了不在当前出口 IP 列表里的公网候选，网站可能绕过代理看到另一条网络路径。\n出口外公网候选：\n" +
+            formatIpLines(unmatchedPublicIps) +
+            "\n当前出口 IP：\n" +
+            formatIpLines(exitIps) +
+            "\n全部公网候选：\n" +
+            formatWebrtcCandidateLines(publicIps, exitIps) +
             (hiddenCount ? "\n另有 " + hiddenCount + " 个内网 / 浏览器隐藏候选，单独看不构成泄漏。" : "")
         });
       } else if (publicIps.length || privateIps.length) {
@@ -1364,7 +1443,10 @@
           flag: false,
           detail:
             (publicIps.length
-              ? "WebRTC 看到了公网候选，但它和当前出口 IP 一致，未发现绕过代理的真实公网地址。"
+              ? "WebRTC 看到了公网候选，但它们都能在当前出口 IP 列表中找到，未发现代理外公网地址。\n公网候选：\n" +
+                formatWebrtcCandidateLines(publicIps, exitIps) +
+                "\n当前出口 IP：\n" +
+                formatIpLines(exitIps)
               : "WebRTC 只返回了内网、CGNAT、Fake-IP 或保留地址，未发现可直接定位真实网络的公网候选。") +
             "\n已归类候选：" +
             summarizeWebrtcCandidates(publicIps, privateIps, hiddenHosts)
@@ -1405,15 +1487,15 @@
   function summarizeWebrtcCandidates(publicIps, privateIps, hiddenHosts) {
     var parts = [];
     if (publicIps.length) {
-      parts.push("公网 " + publicIps.join(" / "));
+      parts.push("公网候选：\n" + formatIpLines(publicIps));
     }
     if (privateIps.length) {
-      parts.push("内网 / 保留 " + privateIps.join(" / "));
+      parts.push("内网 / 保留：\n" + formatIpLines(privateIps));
     }
     if (hiddenHosts.length) {
       parts.push("浏览器隐藏 mDNS " + hiddenHosts.length + " 个");
     }
-    return parts.join("；") || "无";
+    return parts.join("\n") || "无";
   }
 
   function runDNS(mode) {
@@ -1965,34 +2047,57 @@
     });
     render();
     aiTargets.forEach(function (target, index) {
-      getText("https://" + target.host + "/cdn-cgi/trace?_=" + Date.now(), 8000)
-        .then(function (text) {
+      var probes = [0, 1].map(function (probeIndex) {
+        return getText("https://" + target.host + "/cdn-cgi/trace?_=" + Date.now() + "-" + probeIndex, 8000)
+          .then(function (text) {
+            return parseCloudflareTrace(text);
+          })
+          .catch(function () {
+            return null;
+          });
+      });
+      Promise.all(probes).then(function (traces) {
           if (!isCurrentRun(runId)) {
             return;
           }
-          var trace = parseCloudflareTrace(text);
-          var cc = String(trace.loc || "").toUpperCase();
-          var cn = isChinaCountry(cc);
-          state.aipath[index] = {
-            name: target.name,
-            host: target.host,
-            ip: trace.ip || "—",
-            loc: cc || "—",
-            value: (trace.ip || "—") + " · " + (cc || "?"),
-            status: cn ? "red" : "green"
-          };
-          recompute();
-          render();
-        })
-        .catch(function () {
-          if (!isCurrentRun(runId)) {
+          traces = traces.filter(function (trace) {
+            return trace && (trace.ip || trace.loc);
+          });
+          if (!traces.length) {
+            state.aipath[index] = {
+              name: target.name,
+              host: target.host,
+              value: "无法读取（跨源 / 限流）",
+              status: "amber"
+            };
+            recompute();
+            render();
             return;
           }
+          var ips = uniqueValues(
+            traces
+              .map(function (trace) {
+                return trace.ip;
+              })
+              .filter(Boolean)
+          );
+          var locs = uniqueValues(
+            traces
+              .map(function (trace) {
+                return String(trace.loc || "").toUpperCase();
+              })
+              .filter(Boolean)
+          );
+          var cn = locs.some(isChinaCountry);
           state.aipath[index] = {
             name: target.name,
             host: target.host,
-            value: "无法读取（跨源 / 限流）",
-            status: "amber"
+            ip: ips[0] || "—",
+            ips: ips,
+            loc: locs[0] || "—",
+            locs: locs,
+            value: formatAiPathValue(ips, locs),
+            status: cn ? "red" : ips.length ? "green" : "amber"
           };
           recompute();
           render();
@@ -2411,7 +2516,7 @@
       items.push({ label: "大陆直连", section: "sec-conn", row: "", severity: "red" });
     }
     if ((state.rows.webrtc || {}).flag) {
-      items.push({ label: "WebRTC 暴露真实 IP", section: "sec-leak", row: "webrtc", severity: "red" });
+      items.push({ label: "WebRTC 出口外公网候选", section: "sec-leak", row: "webrtc", severity: "red" });
     }
     if ((state.rows.consistency || {}).flag) {
       items.push({ label: "信号前后矛盾", section: "sec-ip", row: "consistency", severity: "red" });
@@ -2739,7 +2844,7 @@
       rowVm("ip", "出口 IP 质量", { sensitive: true, actions: [["↻ 重测", "run-ip"]] }),
       rowVm("consistency", "一致性核对")
     ]);
-    html += renderRowSection("sec-identity", "身份信号", "你像不像中国用户", [
+    html += renderRowSection("sec-identity", "身份信号", "身份画像是否一致", [
       rowVm("lang", "浏览器语言"),
       rowVm("tz", "系统时区"),
       rowVm("emoji", "Emoji 渲染"),

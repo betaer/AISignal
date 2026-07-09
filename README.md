@@ -87,6 +87,17 @@ python3 -m http.server 8080
 - Website：<a href="https://betaer.github.io/AISignalGuard/" target="_blank" rel="noopener noreferrer">https://betaer.github.io/AISignalGuard/</a>
 - Release：发布 `v1.0.0`，文案可直接使用 <a href="docs/release-v1.0.0.md" target="_blank" rel="noopener noreferrer">docs/release-v1.0.0.md</a>
 
+## SEO / GEO
+
+AI Signal Guard 的搜索增长应优先围绕“网络诊断、隐私自查、信号一致性、AI 服务访问异常排障”建设内容，而不是堆砌“防封、绕过风控”等风险词。
+
+完整执行手册见 <a href="docs/seo-geo.md" target="_blank" rel="noopener noreferrer">docs/seo-geo.md</a>。核心方向：
+
+- 基础 SEO 仍是 GEO 的前提：可抓取静态 HTML、唯一 title/description、canonical、sitemap、robots.txt、JSON-LD。
+- Google 生成式搜索官方口径是“GEO 仍然依赖基础 SEO”，不需要为 Google 专门创建 `llms.txt`；但 `llms.txt` 可以作为非 Google LLM 工具的低成本补充。
+- 优先新增 `faq.html`、`privacy.html` 和 6 篇指南页：DNS 泄漏、WebRTC 泄漏、浏览器指纹、AI 网络诊断、AI Signal Guard 一致性、Cloudflare AI 路径。
+- 所有内容页都要写清隐私边界和第三方请求，避免把启发式评分包装成平台风控结论。
+
 ## 路线图
 
 - 结果截图导出，自动套用隐私模式。

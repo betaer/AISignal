@@ -161,6 +161,30 @@ GitHub：https://github.com/betaer/AISignalGuard
 4. README 和 demo 稳定后发 Show HN。
 5. 有截图、GIF、用户反馈后再考虑 Product Hunt。
 
+## SEO / GEO 内容发布顺序
+
+完整策略见 `docs/seo-geo.md`。发布时遵循最新官方口径：Google 的生成式 AI 搜索优化仍然以基础 SEO 和高质量内容为核心，不要把 `llms.txt`、隐藏提示词或批量长尾页当成排名捷径。
+
+1. 先补 `robots.txt`、`sitemap.xml`、canonical、首页 JSON-LD。
+2. 写 `faq.html` 和 `privacy.html`，先解决“这是什么、会不会泄漏隐私、检测准不准”的基础问题。
+3. 写三篇泄漏/指纹指南：DNS 泄漏、WebRTC 泄漏、浏览器指纹。
+4. 写三篇 AI 场景指南：AI 网络诊断、AI Signal Guard 一致性、Cloudflare AI 路径。
+5. 每篇都链接回在线检测页和 GitHub 仓库。
+6. 提交 Google Search Console 和 Bing Webmaster Tools，并观察 query、referrer、star 转化。
+
+推荐内容页标题：
+
+| 页面 | 标题 |
+|---|---|
+| `/faq.html` | AI Signal Guard FAQ：检测项、隐私边界和常见误判 |
+| `/privacy.html` | AI Signal Guard 隐私说明：哪些信号留在本地，哪些会请求第三方 |
+| `/guides/dns-leak-test.html` | DNS 泄漏检测：如何判断 DNS 是否跟随代理 |
+| `/guides/webrtc-leak-test.html` | WebRTC 泄漏检测：公网候选、内网候选和 mDNS |
+| `/guides/browser-fingerprint-check.html` | 浏览器指纹检测：网页能看到哪些本机信号 |
+| `/guides/ai-network-diagnostics.html` | ChatGPT / Claude 访问异常的网络诊断清单 |
+| `/guides/ai-signal-consistency.html` | AI Signal Guard 一致性：IP、时区、语言为什么要一起看 |
+| `/guides/cloudflare-ai-path.html` | AI 路径检测：访问 AI 站点时的 Cloudflare 出口 |
+
 ## 禁用措辞
 
 - 不写“绕过风控”“防封”“保证账号安全”“保证可用”。
