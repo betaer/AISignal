@@ -2,9 +2,13 @@
 
 AI Signal Guard 是一个纯静态的浏览器端 AI 网络与身份信号体检工具。打开网页后，它会从浏览器可见角度检查出口 IP、DNS/WebRTC 泄漏、语言与时区一致性、AI 站点访问路径、服务状态和浏览器指纹，帮助你在使用 ChatGPT、Claude、Gemini、Perplexity 等服务前快速判断当前环境是否自洽。
 
-<a href="https://betaer.github.io/AISignalGuard/" target="_blank" rel="noopener noreferrer">在线体验：https://betaer.github.io/AISignalGuard/</a> · <a href="https://github.com/betaer/AISignalGuard/issues/new/choose" target="_blank" rel="noopener noreferrer">反馈问题</a> · <a href="https://github.com/betaer/AISignalGuard" target="_blank" rel="noopener noreferrer">查看源码</a>
+在线体验：<a href="https://betaer.github.io/AISignalGuard/" target="_blank" rel="noopener noreferrer">https://betaer.github.io/AISignalGuard/</a>
 
 <a href="https://github.com/betaer/AISignalGuard" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/stars/betaer/AISignalGuard.svg?style=social" alt="GitHub stars"></a> ⭐ Star for AI Signal Guard / 请给本项目点个赞！
+
+<a href="https://github.com/betaer/AISignalGuard/issues/new/choose" target="_blank" rel="noopener noreferrer">反馈问题</a>
+ 
+<a href="https://github.com/betaer/AISignalGuard" target="_blank" rel="noopener noreferrer">查看源码</a>
 
 ![AI Signal Guard 产品预览](assets/social-preview.svg)
 
