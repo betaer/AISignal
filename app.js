@@ -2486,6 +2486,9 @@
     if (verdict.result === false) {
       return "可信 · 未见大陆直连";
     }
+    if (verdict.status === "amber") {
+      return "未确认 · 网络探针不可判定";
+    }
     return "检测中";
   }
 
