@@ -1,34 +1,25 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AI Signal Guard · browser analyzer</title>
-    <meta
-      name="description"
-      content="AI Signal Guard 是一个浏览器端 AI 账号网络与身份信号体检工具。Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker."
-    />
-    <meta name="keywords" content="AI Signal Guard, browser signal analyzer, IP 检测, DNS 泄漏, WebRTC, AI 路径, 浏览器指纹" />
-    <meta name="theme-color" content="#f7f7f5" />
-    <meta property="og:title" content="AI Signal Guard" />
-    <meta
-      property="og:description"
-      content="Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker."
-    />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://betaer.github.io/AISignalGuard/" />
-    <meta property="og:image" content="https://betaer.github.io/AISignalGuard/assets/social-preview.svg" />
-    <meta property="og:image:width" content="1280" />
-    <meta property="og:image:height" content="640" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="AI Signal Guard" />
-    <meta
-      name="twitter:description"
-      content="Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker."
-    />
-    <meta name="twitter:image" content="https://betaer.github.io/AISignalGuard/assets/social-preview.svg" />
-    <link rel="icon" href="favicon.svg?v=20260708-3" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.min.css?v=20260709-12" />
+    <meta name="description" content="AI Signal Guard 是一个浏览器端 AI 账号网络与身份信号体检工具。Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.">
+    <meta name="keywords" content="AI Signal Guard, browser signal analyzer, IP 检测, DNS 泄漏, WebRTC, AI 路径, 浏览器指纹">
+    <meta name="theme-color" content="#f7f7f5">
+    <meta property="og:title" content="AI Signal Guard">
+    <meta property="og:description" content="Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://betaer.github.io/AISignalGuard/">
+    <meta property="og:image" content="https://betaer.github.io/AISignalGuard/assets/social-preview.svg">
+    <meta property="og:image:width" content="1280">
+    <meta property="og:image:height" content="640">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AI Signal Guard">
+    <meta name="twitter:description" content="Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.">
+    <meta name="twitter:image" content="https://betaer.github.io/AISignalGuard/assets/social-preview.svg">
+    <link rel="icon" href="favicon.svg?v=20260708-3" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.min.css?v=20260709-12">
     <script>
       window.dataLayer = window.dataLayer || [];
       window.gtag = window.gtag || function () {
@@ -43,8 +34,8 @@
 
     <header class="topbar">
       <div class="topbar-inner">
-        <div class="brand-lockup" aria-label="AI Signal Guard">
-          <span class="brand-mark" aria-hidden="true"><img src="favicon.svg?v=20260708-3" alt="" /></span>
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true"><img src="favicon.svg?v=20260708-3" alt=""></span>
           <span class="brand-text">AI Signal Guard</span>
           <span class="brand-sub">AI Signal Guard · browser analyzer</span>
         </div>
@@ -56,7 +47,7 @@
             class="github-link"
             href="https://github.com/betaer/AISignalGuard"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             aria-label="打开 GitHub 仓库"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -78,9 +69,9 @@
     <main class="shell" id="main">
       <section class="score-stage" id="sec-score" aria-labelledby="score-title">
         <p class="eyebrow" id="score-title">综合信任评估 · Trust Score</p>
-        <div class="score-ring" aria-label="综合信任分">
+        <div class="score-ring">
           <svg id="score-ring" viewBox="0 0 120 120" role="img" aria-label="综合信任分进度和分项评分"></svg>
-          <div class="score-segment-hotspots" id="score-segment-hotspots" aria-label="评分分项详情"></div>
+          <div class="score-segment-hotspots" id="score-segment-hotspots" role="group" aria-label="评分分项详情"></div>
           <div class="score-copy">
             <span class="score-number" id="score-number">··</span>
             <span class="score-status" id="score-status">检测中</span>
@@ -89,7 +80,7 @@
         <p class="score-summary" id="score-summary">正在运行本地与联网检测…</p>
         <div class="score-insights" id="score-insights" aria-live="polite"></div>
 
-        <div class="score-controls" aria-label="判定口径">
+        <div class="score-controls" role="group" aria-label="判定口径">
           <span>判定口径</span>
           <div class="segmented" role="group" aria-label="地区判定口径">
             <button class="segmented-button is-active" type="button" data-region="cnhk">
@@ -115,11 +106,8 @@
             路径出口在<span class="china-emphasis">中国</span> -15。
           </p>
           <p>
-            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 语言含中文 -4 · 时区在<span
-              class="china-emphasis"
-              >中国</span
-            >
-            -4 · Emoji / 字体弱信号各 -1。
+            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 语言含中文 -4 · 时区在<span class="china-emphasis">中国</span> -4 ·
+            Emoji / 字体弱信号各 -1。
             多源 IP 情报冲突 -4。
           </p>
           <p>AI 官方服务状态只用于排查平台故障，不参与综合信任分。</p>
@@ -140,17 +128,17 @@
 
     <footer class="site-footer">
       <div>
-        <a href="https://betaer.github.io/AISignalGuard/">AI Signal Guard</a>
+        <a href="https://betaer.github.io/AISignalGuard/" target="_blank" rel="noopener noreferrer">AI Signal Guard</a>
         <span>Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.</span>
       </div>
       <div>
-        <a href="https://github.com/betaer/AISignalGuard/issues/new/choose" target="_blank" rel="noreferrer">反馈问题</a>
-        <a href="https://github.com/betaer/AISignalGuard/commits/main/" target="_blank" rel="noreferrer">更新日志</a>
-        <a href="https://github.com/betaer/AISignalGuard" target="_blank" rel="noreferrer">源码</a>
+        <a href="https://github.com/betaer/AISignalGuard/issues/new/choose" target="_blank" rel="noopener noreferrer">反馈问题</a>
+        <a href="https://github.com/betaer/AISignalGuard/commits/main/" target="_blank" rel="noopener noreferrer">更新日志</a>
+        <a href="https://github.com/betaer/AISignalGuard" target="_blank" rel="noopener noreferrer">源码</a>
       </div>
     </footer>
 
-    <div class="floating-actions" aria-label="快捷操作">
+    <div class="floating-actions" role="group" aria-label="快捷操作">
       <button class="floating-share" id="copy-summary" type="button" aria-label="复制诊断摘要" title="复制脱敏诊断摘要">
         <svg class="floating-share-icon floating-share-icon-share" aria-hidden="true" viewBox="0 0 24 24">
           <circle cx="18" cy="5" r="3"></circle>
