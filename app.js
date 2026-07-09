@@ -33,7 +33,7 @@
   ];
 
   var state = {
-    region: "cn",
+    region: "cnhk",
     privacy: false,
     activeId: "sec-score",
     score: 0,
@@ -415,9 +415,9 @@
       "Asia/Beijing",
       "PRC"
     ];
-    var cnhk = mainland.concat(["Asia/Hong_Kong", "Asia/Macau", "Hongkong"]);
+    var cnhk = mainland.concat(["Asia/Hong_Kong", "Asia/Macau", "Asia/Macao", "Hongkong", "Macao"]);
     if (!zone || zone === "未知") {
-      return new Date().getTimezoneOffset() === -480;
+      return false;
     }
     return (state.region === "cnhk" ? cnhk : mainland).indexOf(zone) >= 0;
   }
@@ -434,7 +434,7 @@
   }
 
   function regionLabel() {
-    return state.region === "cnhk" ? "含港澳" : "仅中国大陆";
+    return state.region === "cnhk" ? "中国大陆 / 香港 / 澳门，不含台湾" : "仅中国大陆，不含台湾";
   }
 
   function isHostingOrg(text) {
@@ -626,7 +626,7 @@
         status: tzFlag ? "amber" : "green",
         value: timeZone,
         detail:
-          "网页可以读取系统时区。已兼容旧 tzdata 别名（PRC / Hongkong / ROC）和无法读取时区时的 UTC+8 回退。若出口 IP 在境外，但时区仍指向当前中国口径内地区，风控会看到明显矛盾。"
+          "网页可以读取系统时区。当前风险口径只包含中国大陆、香港、澳门，不包含台湾；Asia/Taipei / ROC 不按风险时区处理。若出口 IP 在境外，但时区仍指向当前中国口径内地区，风控会看到明显矛盾。"
       });
 
       var emoji = detectEmoji();
@@ -2121,6 +2121,27 @@
     return "red";
   }
 
+  function identityConsistencyLabel(row) {
+    if (!row || row.status === "pending") {
+      return "检测中";
+    }
+    if (row.flag) {
+      return "信号矛盾";
+    }
+    if (row.value === "自洽但暴露") {
+      return "中国口径内出口暴露";
+    }
+    return "无暴露";
+  }
+
+  function identityScoreDetail(lang, tz, consistency) {
+    return [
+      "语言：" + ((lang && lang.value) || "检测中"),
+      "时区：" + ((tz && tz.value) || "检测中"),
+      "一致性：" + identityConsistencyLabel(consistency)
+    ].join("\n");
+  }
+
   function scoreSegmentData() {
     var ip = state.rows.ip || {};
     var lang = state.rows.lang || {};
@@ -2185,13 +2206,7 @@
               : identityPenalty
                 ? "amber"
                 : "green",
-        detail:
-          "语言 " +
-          (lang.value || "检测中") +
-          " · 时区 " +
-          (tz.value || "检测中") +
-          " · 一致性 " +
-          (consistency.value || "检测中")
+        detail: identityScoreDetail(lang, tz, consistency)
       },
       {
         id: "leak",
@@ -2305,7 +2320,7 @@
 
   function scoreTipDetailRows(detail) {
     return String(detail || "等待检测结果")
-      .split(/(?:；|。)\s*/)
+      .split(/(?:\n+|；|。)\s*/)
       .map(function (row) {
         return row.trim();
       })
@@ -2542,7 +2557,7 @@
   }
 
   function diagnosticRegionLabel() {
-    return state.region === "cnhk" ? "含港澳" : "仅中国大陆";
+    return state.region === "cnhk" ? "中国大陆 + 香港 + 澳门，不含台湾" : "仅中国大陆，不含台湾";
   }
 
   function render() {

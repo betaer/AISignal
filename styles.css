@@ -1842,6 +1842,43 @@ input:focus-visible {
     margin-top: 14px;
   }
 
+  .score-metric-tip {
+    width: min(276px, calc(100vw - 28px));
+  }
+
+  .score-metric.is-left .score-metric-tip,
+  .score-metric.is-right .score-metric-tip {
+    top: calc(100% + 8px);
+    bottom: auto;
+    transform: translate(0, 4px);
+  }
+
+  .score-metric.is-left .score-metric-tip {
+    right: auto;
+    left: 0;
+  }
+
+  .score-metric.is-right .score-metric-tip {
+    right: 0;
+    left: auto;
+  }
+
+  .score-metric.is-left.is-bottom .score-metric-tip,
+  .score-metric.is-right.is-bottom .score-metric-tip {
+    top: auto;
+    bottom: calc(100% + 8px);
+    transform: translate(0, -4px);
+  }
+
+  .score-metric.is-left:hover .score-metric-tip,
+  .score-metric.is-left:focus-visible .score-metric-tip,
+  .score-metric.is-left.is-active .score-metric-tip,
+  .score-metric.is-right:hover .score-metric-tip,
+  .score-metric.is-right:focus-visible .score-metric-tip,
+  .score-metric.is-right.is-active .score-metric-tip {
+    transform: translate(0, 0);
+  }
+
   .section {
     scroll-margin-top: 78px;
     margin-top: 38px;
