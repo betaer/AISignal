@@ -27,9 +27,9 @@
     { id: "ip", label: "IP", name: "出口 IP", weight: 35 },
     { id: "identity", label: "身份", name: "身份信号", weight: 18 },
     { id: "leak", label: "泄漏", name: "网络泄漏", weight: 27 },
-    { id: "conn", label: "直连", name: "大陆直连探针", weight: 20 },
-    { id: "ai", label: "路径", name: "AI 路径出口", weight: 15 },
-    { id: "multi", label: "互证", name: "多源交叉", weight: 8 }
+    { id: "conn", label: "大陆探针", name: "大陆直连探针", weight: 20 },
+    { id: "ai", label: "AI出口", name: "AI 路径出口", weight: 15 },
+    { id: "multi", label: "互证", name: "多源交叉", weight: 4 }
   ];
 
   var state = {
@@ -1699,8 +1699,8 @@
     var mainland = state.conn.groups.find(function (group) {
       return group.title === "中国站点";
     });
-    var nonChinaGroups = state.conn.groups.filter(function (group) {
-      return group.title !== "中国站点";
+    var globalWall = state.conn.groups.find(function (group) {
+      return group.title === "全球站点 · 常被墙";
     });
     var mainlandReachable = Boolean(
       mainland &&
@@ -1708,36 +1708,57 @@
           return site.code === "ok";
         })
     );
-    var noChinaReachable = nonChinaGroups.some(function (group) {
-      return group.sites.some(function (site) {
-        return site.code === "ok";
-      });
-    });
-    var pending = state.conn.groups.some(function (group) {
-      return group.sites.some(function (site) {
+    var globalReachable = Boolean(
+      globalWall &&
+        globalWall.sites.some(function (site) {
+          return site.code === "ok";
+        })
+    );
+    var globalPending = Boolean(
+      globalWall &&
+        globalWall.sites.some(function (site) {
+          return site.code === "pending";
+        })
+    );
+    var mainlandPending = Boolean(
+      mainland &&
+        mainland.sites.some(function (site) {
+          return site.code === "pending";
+        })
+    );
+    var aiPending = state.conn.groups.some(function (group) {
+      return group.title === "AI 服务" && group.sites.some(function (site) {
         return site.code === "pending";
       });
     });
-    if (noChinaReachable) {
+    var pending = globalPending || mainlandPending;
+    if (globalReachable) {
       return {
         status: "green",
         result: false,
-        text: "大陆探针判定：全球站点可达，当前不像大陆直连，或已走代理 / 分流。"
+        text: "大陆探针判定：全球站点 · 常被墙可达，当前不像大陆直连，或已走代理 / 分流。"
       };
     }
-    if (mainlandReachable) {
+    if (!pending && mainlandReachable) {
       return {
         status: "red",
         result: true,
-        text: "大陆探针判定：全球站点不可达但中国站点可达，符合大陆直连特征。"
+        text: "大陆探针判定：全球站点 · 常被墙不可达但中国站点可达，符合大陆直连特征。"
+      };
+    }
+    if (pending) {
+      return {
+        status: "pending",
+        result: null,
+        text: "大陆探针判定：全球站点 · 常被墙或中国站点仍在检测中。"
       };
     }
     return {
-      status: pending ? "pending" : "amber",
+      status: "amber",
       result: null,
-      text: pending
-        ? "大陆探针判定：仍有探针在检测中。"
-        : "大陆探针判定：全球站点和中国站点都不可达，可能离线、被扩展拦截或网络限制。"
+      text:
+        "大陆探针判定：全球站点 · 常被墙和中国站点都不可达，可能离线、被扩展拦截或网络限制。" +
+        (aiPending ? "AI 服务仍在排障检测，不参与大陆直连扣分。" : "")
     };
   }
 
@@ -2188,16 +2209,16 @@
       },
       {
         id: "conn",
-        label: "直连",
+        label: "大陆探针",
         name: "大陆直连探针",
         max: 20,
         penalty: connPenalty,
         status: verdict.status,
-        detail: networkShareStatus() + "。此项只看网络路径特征，不使用 AI 平台服务稳定性。"
+        detail: networkShareStatus() + "。此项只看全球站点 · 常被墙与中国站点的可达性，不使用 AI 平台服务稳定性。"
       },
       {
         id: "ai",
-        label: "路径",
+        label: "AI出口",
         name: "AI 路径出口",
         max: 15,
         penalty: aiPenalty,
@@ -2208,7 +2229,7 @@
         id: "multi",
         label: "互证",
         name: "多源交叉",
-        max: 8,
+        max: 4,
         penalty: multiPenalty,
         status: !state.multi.length ? (multiUnavailable ? "amber" : "pending") : multiPenalty ? "amber" : "green",
         detail: state.multiSummary
@@ -2871,7 +2892,7 @@
           );
         })
         .join("") +
-      '<p class="conn-note">浏览器探针只判断能否建立跨站请求，不读取内容、不带 referrer。AI 服务和部分中国站点会拦截跨源探针；这类结果显示为“浏览器受限”或“未确认”，不等同于网站不可用。“大陆直连”主要依据全球站点 · 常被墙是否不可达，并结合中国站点是否可达。</p></div></section>'
+      '<p class="conn-note">浏览器探针只判断能否建立跨站请求，不读取内容、不带 referrer。AI 服务和部分中国站点会拦截跨源探针；这类结果显示为“浏览器受限”或“未确认”，不等同于网站不可用。大陆探针只依据全球站点 · 常被墙与中国站点的可达性，AI 服务仅用于排障展示，不参与大陆直连扣分。</p></div></section>'
     );
   }
 
