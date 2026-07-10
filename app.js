@@ -2787,22 +2787,37 @@
     return ["green", "amber", "red", "neutral"].indexOf(status) >= 0 ? status : "pending";
   }
 
-  function renderScoreNodes(segments) {
+  function scoreSegmentMap(segments) {
     var segmentById = {};
     segments.forEach(function (segment) {
       segmentById[segment.id] = segment;
     });
+    return segmentById;
+  }
+
+  function scoreNodeView(meta, segmentById) {
+    var segment = segmentById[meta.id] || {
+      id: meta.id,
+      name: meta.label,
+      max: 0,
+      penalty: 0,
+      status: "pending",
+      detail: "等待检测结果"
+    };
+    return {
+      segment: segment,
+      status: scoreNodeStatusClass(segment.status),
+      tipId: "score-node-tip-" + meta.id
+    };
+  }
+
+  function renderScoreNodes(segments) {
+    var segmentById = scoreSegmentMap(segments);
     return SCORE_SEGMENTS.map(function (meta) {
-      var segment = segmentById[meta.id] || {
-        id: meta.id,
-        name: meta.label,
-        max: 0,
-        penalty: 0,
-        status: "pending",
-        detail: "等待检测结果"
-      };
-      var displayStatus = scoreNodeStatusClass(segment.status);
-      var tipId = "score-node-tip-" + meta.id;
+      var view = scoreNodeView(meta, segmentById);
+      var segment = view.segment;
+      var displayStatus = view.status;
+      var tipId = view.tipId;
       var active = state.pinnedScoreNode === meta.id;
       return (
         '<button class="score-node score-node-' +
@@ -2838,6 +2853,65 @@
         "</span></span></button>"
       );
     }).join("");
+  }
+
+  function syncScoreNodes(segments) {
+    var root = $("#score-nodes");
+    var buttons = Array.prototype.slice.call(root.children);
+    var reusable =
+      buttons.length === SCORE_SEGMENTS.length &&
+      SCORE_SEGMENTS.every(function (meta, index) {
+        return buttons[index].classList.contains("score-node") && buttons[index].dataset.scoreSegment === meta.id;
+      });
+
+    if (!reusable) {
+      root.innerHTML = renderScoreNodes(segments);
+      return;
+    }
+
+    var segmentById = scoreSegmentMap(segments);
+    SCORE_SEGMENTS.forEach(function (meta, index) {
+      var button = buttons[index];
+      var view = scoreNodeView(meta, segmentById);
+      var segment = view.segment;
+      ["green", "amber", "red", "neutral", "pending"].forEach(function (status) {
+        button.classList.toggle("score-node-" + status, status === view.status);
+      });
+      button.dataset.status = view.status;
+      button.setAttribute(
+        "aria-label",
+        segment.name + "：" + segmentStatusText(segment) + "，" + segmentPenaltyText(segment)
+      );
+      button.setAttribute("aria-describedby", view.tipId);
+      button.setAttribute("aria-controls", view.tipId);
+
+      var use = button.querySelector(".score-node-icon use");
+      var iconHref = "#" + meta.icon;
+      if (use && use.getAttribute("href") !== iconHref) {
+        use.setAttribute("href", iconHref);
+      }
+      var label = button.querySelector(".score-node-label");
+      if (label && label.textContent !== meta.label) {
+        label.textContent = meta.label;
+      }
+      var tip = button.querySelector(".score-node-tip");
+      if (tip) {
+        tip.id = view.tipId;
+        var title = tip.querySelector(".score-tip-title");
+        var metaLine = tip.querySelector(".score-tip-meta");
+        var detail = tip.querySelector(".score-tip-detail");
+        if (title) title.textContent = segment.name;
+        if (metaLine) {
+          metaLine.textContent = "状态：" + segmentStatusText(segment) + " · " + segmentPenaltyText(segment);
+        }
+        if (detail) {
+          var detailHtml = renderScoreTipDetail(segment.detail);
+          if (detail.innerHTML !== detailHtml) {
+            detail.innerHTML = detailHtml;
+          }
+        }
+      }
+    });
   }
 
   function collectRiskItems() {
@@ -3092,10 +3166,6 @@
   function renderNow() {
     state.renderScheduled = false;
     var active = document.activeElement;
-    var restoreScoreNode =
-      active && active.classList && active.classList.contains("score-node")
-        ? active.dataset.scoreSegment || ""
-        : "";
     var restoreMultiIp =
       active && active.id === "multi-ip"
         ? { start: active.selectionStart, end: active.selectionEnd }
@@ -3106,16 +3176,6 @@
     renderSections();
     bindScoreNodeEvents();
     bindDynamicEvents();
-    if (restoreScoreNode) {
-      var scoreNode = document.querySelector('[data-score-segment="' + restoreScoreNode + '"]');
-      if (scoreNode) {
-        try {
-          scoreNode.focus({ preventScroll: true });
-        } catch (err) {
-          scoreNode.focus();
-        }
-      }
-    }
     if (restoreMultiIp) {
       var input = $("#multi-ip");
       if (input) {
@@ -3166,7 +3226,7 @@
         : "综合信任分：检测中"
     );
     scoreRing.innerHTML = renderScoreGauge(state.score, ready);
-    $("#score-nodes").innerHTML = renderScoreNodes(segments);
+    syncScoreNodes(segments);
     $("#score-summary").innerHTML = highlightRiskText(summaryText());
     $("#score-insights").innerHTML = renderScoreInsights();
     var copySummary = $("#copy-summary");
@@ -3206,57 +3266,107 @@
     button.setAttribute("aria-expanded", "true");
   }
 
-  function restorePinnedScoreNode(except) {
-    if (!state.pinnedScoreNode) {
+  function restoreScoreNode(except) {
+    var hovered = document.querySelector(".score-node:hover");
+    if (hovered && hovered !== except) {
+      openScoreNode(hovered, state.pinnedScoreNode === hovered.dataset.scoreSegment);
       return;
     }
-    var pinned = document.querySelector('[data-score-segment="' + state.pinnedScoreNode + '"]');
-    if (pinned && pinned !== except) {
-      openScoreNode(pinned, true);
+    var focused = document.activeElement;
+    if (focused && focused.classList && focused.classList.contains("score-node") && focused !== except) {
+      openScoreNode(focused, state.pinnedScoreNode === focused.dataset.scoreSegment);
+      return;
+    }
+    if (state.pinnedScoreNode) {
+      var pinned = document.querySelector('[data-score-segment="' + state.pinnedScoreNode + '"]');
+      if (pinned && pinned !== except) {
+        openScoreNode(pinned, true);
+      }
     }
   }
 
   function bindScoreNodeEvents() {
-    document.querySelectorAll(".score-node").forEach(function (button) {
+    var root = $("#score-nodes");
+    if (!root || root.dataset.scoreEventsBound === "true") {
+      return;
+    }
+    root.dataset.scoreEventsBound = "true";
+
+    function eventScoreNode(event) {
+      var target = event.target;
+      var button = target && typeof target.closest === "function" ? target.closest(".score-node") : null;
+      return button && root.contains(button) ? button : null;
+    }
+
+    function movedWithin(button, relatedTarget) {
+      return Boolean(relatedTarget && typeof relatedTarget.nodeType === "number" && button.contains(relatedTarget));
+    }
+
+    root.addEventListener("mouseover", function (event) {
+      var button = eventScoreNode(event);
+      if (!button || movedWithin(button, event.relatedTarget)) {
+        return;
+      }
       var id = button.dataset.scoreSegment;
-      button.addEventListener("mouseenter", function () {
-        openScoreNode(button, state.pinnedScoreNode === id);
-      });
-      button.addEventListener("focus", function () {
-        openScoreNode(button, state.pinnedScoreNode === id);
-      });
-      button.addEventListener("mouseleave", function () {
-        if (document.activeElement === button || state.pinnedScoreNode === id) {
-          return;
-        }
+      openScoreNode(button, state.pinnedScoreNode === id);
+    });
+
+    root.addEventListener("mouseout", function (event) {
+      var button = eventScoreNode(event);
+      if (
+        !button ||
+        movedWithin(button, event.relatedTarget) ||
+        document.activeElement === button ||
+        state.pinnedScoreNode === button.dataset.scoreSegment
+      ) {
+        return;
+      }
+      closeScoreNode(button);
+      restoreScoreNode(button);
+    });
+
+    root.addEventListener("focusin", function (event) {
+      var button = eventScoreNode(event);
+      if (button) {
+        openScoreNode(button, state.pinnedScoreNode === button.dataset.scoreSegment);
+      }
+    });
+
+    root.addEventListener("focusout", function (event) {
+      var button = eventScoreNode(event);
+      if (!button || movedWithin(button, event.relatedTarget)) {
+        return;
+      }
+      if (!button.matches(":hover")) {
         closeScoreNode(button);
-        restorePinnedScoreNode(button);
-      });
-      button.addEventListener("blur", function () {
-        if (!button.matches(":hover")) {
-          closeScoreNode(button);
-          restorePinnedScoreNode(button);
-        }
-      });
-      button.addEventListener("click", function (event) {
-        event.stopPropagation();
-        if (state.pinnedScoreNode === id) {
-          state.pinnedScoreNode = "";
-          closeScoreNode(button);
-          return;
-        }
-        state.pinnedScoreNode = id;
-        openScoreNode(button, true);
-      });
-      button.addEventListener("keydown", function (event) {
-        if (event.key !== "Escape") {
-          return;
-        }
-        event.preventDefault();
+        restoreScoreNode(button);
+      }
+    });
+
+    root.addEventListener("click", function (event) {
+      var button = eventScoreNode(event);
+      if (!button) {
+        return;
+      }
+      event.stopPropagation();
+      var id = button.dataset.scoreSegment;
+      if (state.pinnedScoreNode === id) {
         state.pinnedScoreNode = "";
-        closeScoreNodes();
-        button.blur();
-      });
+        closeScoreNode(button);
+        return;
+      }
+      state.pinnedScoreNode = id;
+      openScoreNode(button, true);
+    });
+
+    root.addEventListener("keydown", function (event) {
+      var button = eventScoreNode(event);
+      if (!button || event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      state.pinnedScoreNode = "";
+      closeScoreNodes();
     });
   }
 

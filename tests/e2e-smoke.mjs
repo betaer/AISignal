@@ -245,19 +245,113 @@ const scenarios = [
     name: "A 方案评分节点：单气泡交互与移动端无横向溢出",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      await routeFixtures(page, base.origin, { ipDelays: { "ipwho.is": 900 } });
+      await routeFixtures(page, base.origin, {
+        ipDelays: { "ipwho.is": 800, "api.ip.sb": 1600, "ipinfo.io": 2400 },
+      });
       await page.goto(base.href);
       const identity = page.locator('[data-score-segment="identity"]');
+      const ip = page.locator('[data-score-segment="ip"]');
       await identity.waitFor({ state: "visible" });
-      await identity.focus();
-      await identity.evaluate((node) => node.setAttribute("data-focus-probe", "before-render"));
+      await identity.hover();
+      await page.waitForTimeout(220);
+      await page.evaluate(() => {
+        const probe = { renders: 0, frames: 0, hiddenFrames: 0, done: false };
+        window.__scoreHoverProbe = probe;
+        new MutationObserver(() => {
+          probe.renders += 1;
+        }).observe(document.querySelector("#section-root"), { childList: true });
+        const sample = () => {
+          const node = document.querySelector('[data-score-segment="identity"]');
+          const tip = node?.querySelector(".score-node-tip");
+          const style = tip ? getComputedStyle(tip) : null;
+          probe.frames += 1;
+          if (
+            !node ||
+            node.getAttribute("aria-expanded") !== "true" ||
+            !style ||
+            style.visibility !== "visible" ||
+            Number(style.opacity) < 0.9
+          ) {
+            probe.hiddenFrames += 1;
+          }
+          if (!probe.done) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await page.waitForFunction(() => window.__scoreHoverProbe?.renders >= 1, null, { timeout: 10000 });
+      await page.waitForTimeout(250);
+      const hoverProbe = await page.evaluate(() => {
+        window.__scoreHoverProbe.done = true;
+        return window.__scoreHoverProbe;
+      });
+      ok(
+        "hover tooltip stays continuously visible across async score renders",
+        hoverProbe.renders >= 1 && hoverProbe.frames > 0 && hoverProbe.hiddenFrames === 0,
+        JSON.stringify(hoverProbe),
+      );
+
+      await ip.click();
+      await identity.hover();
+      await page.waitForTimeout(220);
+      const rendersBeforePinnedHover = await page.evaluate(() => window.__scoreHoverProbe.renders);
       await page.waitForFunction(
-        () => !document.querySelector('[data-score-segment="identity"]')?.hasAttribute("data-focus-probe"),
-        null,
+        (before) => window.__scoreHoverProbe?.renders > before,
+        rendersBeforePinnedHover,
+        { timeout: 10000 },
+      );
+      const openDuringPinnedHover = await page.locator('.score-node[aria-expanded="true"]').evaluateAll((nodes) =>
+        nodes.map((node) => node.dataset.scoreSegment),
+      );
+      ok(
+        "hovered node remains the only open tooltip while another node is pinned and scores update",
+        openDuringPinnedHover.join(",") === "identity",
+        openDuringPinnedHover.join(",") || "none",
+      );
+      await page.locator("#score-title").hover();
+      await page.waitForTimeout(220);
+      const restoredPinned = await page.locator('.score-node[aria-expanded="true"]').evaluateAll((nodes) =>
+        nodes.map((node) => ({ id: node.dataset.scoreSegment, pinned: node.classList.contains("is-pinned") })),
+      );
+      ok(
+        "leaving the transient tooltip restores the pinned tooltip",
+        restoredPinned.length === 1 && restoredPinned[0].id === "ip" && restoredPinned[0].pinned,
+        JSON.stringify(restoredPinned),
+      );
+
+      const ai = page.locator('[data-score-segment="ai"]');
+      await ai.focus();
+      await identity.hover();
+      await page.locator("#score-title").hover();
+      await page.waitForTimeout(220);
+      const restoredFocus = await page.locator('.score-node[aria-expanded="true"]').evaluateAll((nodes) =>
+        nodes.map((node) => ({ id: node.dataset.scoreSegment, pinned: node.classList.contains("is-pinned") })),
+      );
+      ok(
+        "leaving a hovered node restores the focused node before the pinned node",
+        restoredFocus.length === 1 && restoredFocus[0].id === "ai" && !restoredFocus[0].pinned,
+        JSON.stringify(restoredFocus),
+      );
+      await page.locator("#privacy-toggle").focus();
+      await page.waitForTimeout(220);
+      const restoredAfterBlur = await page.locator('.score-node[aria-expanded="true"]').evaluateAll((nodes) =>
+        nodes.map((node) => ({ id: node.dataset.scoreSegment, pinned: node.classList.contains("is-pinned") })),
+      );
+      ok(
+        "blurring the focused score node falls back to the pinned tooltip",
+        restoredAfterBlur.length === 1 && restoredAfterBlur[0].id === "ip" && restoredAfterBlur[0].pinned,
+        JSON.stringify(restoredAfterBlur),
+      );
+
+      await identity.focus();
+      const rendersBeforeFocus = await page.evaluate(() => window.__scoreHoverProbe.renders);
+      await page.waitForFunction(
+        (before) => window.__scoreHoverProbe?.renders > before,
+        rendersBeforeFocus,
         { timeout: 10000 },
       );
       const focusAfterRender = await page.evaluate(() => document.activeElement?.dataset?.scoreSegment || "");
       ok("score-node focus survives an async result re-render", focusAfterRender === "identity", focusAfterRender || "BODY");
+      await identity.press("Escape");
       await waitForScore(page);
       const scoreNodes = page.locator("#score-nodes .score-node");
       const count = await scoreNodes.count();
@@ -266,7 +360,6 @@ const scenarios = [
         await page.close();
         return;
       }
-      const ip = page.locator('[data-score-segment="ip"]');
       await ip.click();
       ok("click pins one tooltip", (await ip.getAttribute("aria-expanded")) === "true");
       await page.waitForTimeout(220);
@@ -295,7 +388,12 @@ const scenarios = [
           return style.visibility === "visible" || Number(style.opacity) > 0;
         }).length,
       );
-      ok("Escape closes every tooltip", openAfterEscape === 0 && visibleAfterEscape === 0, `open=${openAfterEscape}, visible=${visibleAfterEscape}`);
+      const focusAfterEscape = await page.evaluate(() => document.activeElement?.dataset?.scoreSegment || "");
+      ok(
+        "Escape closes every tooltip and keeps focus on its trigger",
+        openAfterEscape === 0 && visibleAfterEscape === 0 && focusAfterEscape === "identity",
+        `open=${openAfterEscape}, visible=${visibleAfterEscape}, focus=${focusAfterEscape || "BODY"}`,
+      );
 
       await page.setViewportSize({ width: 300, height: 700 });
       const narrowAudit = [];
