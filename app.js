@@ -16,20 +16,13 @@
     ["sec-trace", "路由追踪"]
   ];
 
-  var COLORS = {
-    green: "oklch(0.58 0.12 148)",
-    amber: "oklch(0.66 0.12 78)",
-    red: "oklch(0.58 0.16 25)",
-    pending: "#b7b7af"
-  };
-
   var SCORE_SEGMENTS = [
-    { id: "ip", label: "IP", name: "出口 IP", weight: 35 },
-    { id: "identity", label: "身份", name: "身份信号", weight: 18 },
-    { id: "leak", label: "泄漏", name: "网络泄漏", weight: 27 },
-    { id: "conn", label: "大陆探针", name: "大陆直连探针", weight: 20 },
-    { id: "ai", label: "AI出口", name: "AI 路径出口", weight: 15 },
-    { id: "multi", label: "互证", name: "多源交叉", weight: 4 }
+    { id: "ip", label: "出口 IP", icon: "score-icon-ip" },
+    { id: "identity", label: "身份", icon: "score-icon-identity" },
+    { id: "leak", label: "泄漏", icon: "score-icon-leak" },
+    { id: "conn", label: "网络连通", icon: "score-icon-conn" },
+    { id: "ai", label: "AI 出口", icon: "score-icon-ai" },
+    { id: "multi", label: "多源互证", icon: "score-icon-multi" }
   ];
 
   var state = {
@@ -86,7 +79,8 @@
     aistatus: [],
     fp: [],
     traceTab: 0,
-    copied: ""
+    copied: "",
+    pinnedScoreNode: ""
   };
 
   var statusText = {
@@ -2751,42 +2745,24 @@
     return hasRows ? scoreKey(score) : "pending";
   }
 
-  function renderScoreRingSegments(segments, score, hasRows) {
-    var totalWeight = SCORE_SEGMENTS.reduce(function (sum, item) {
-      return sum + item.weight;
-    }, 0);
-    var gap = 7.2;
-    var usable = RING_CIRCUMFERENCE - gap * SCORE_SEGMENTS.length;
-    var cursor = 0;
-    var tracks = [];
-    var normalizedScore = hasRows ? Math.max(0, Math.min(100, score)) : 0;
+  function renderScoreGauge(score, ready) {
+    var normalizedScore = ready ? Math.max(0, Math.min(100, score)) : 0;
     var progressLength = RING_CIRCUMFERENCE * (normalizedScore / 100);
-    var progressKey = scoreProgressClass(normalizedScore, hasRows);
-    SCORE_SEGMENTS.forEach(function (meta, index) {
-      var segment = segments[index];
-      var length = usable * (meta.weight / totalWeight);
-      var dash = Math.max(0, length).toFixed(3) + " " + RING_CIRCUMFERENCE.toFixed(3);
-      var offset = (-cursor).toFixed(3);
-      tracks.push(
-        '<circle class="score-track score-track-segment" cx="60" cy="60" r="52" stroke-dasharray="' +
-          dash +
-          '" stroke-dashoffset="' +
-          offset +
-          '"></circle>'
-      );
-      cursor += length + gap;
-    });
+    var progressKey = scoreProgressClass(normalizedScore, ready);
+    var title = ready
+      ? "综合信任分：" + normalizedScore + "/100，" + statusText[scoreKey(normalizedScore)]
+      : "综合信任分：检测中";
     return (
-      tracks.join("") +
+      '<title>' +
+      escapeHtml(title) +
+      '</title><circle class="score-track" cx="60" cy="60" r="52"></circle>' +
       '<circle class="score-progress score-progress-' +
       progressKey +
       '" cx="60" cy="60" r="52" stroke-dasharray="' +
       progressLength.toFixed(3) +
       " " +
       RING_CIRCUMFERENCE.toFixed(3) +
-      '" stroke-dashoffset="0"><title>' +
-      escapeHtml(hasRows ? "综合信任分：" + normalizedScore + "/100" : "综合信任分：检测中") +
-      "</title></circle>"
+      '" stroke-dashoffset="0"></circle>'
     );
   }
 
@@ -2807,44 +2783,51 @@
       .join("");
   }
 
-  function renderScoreSegmentHotspots(segments, ready) {
-    var totalWeight = SCORE_SEGMENTS.reduce(function (sum, item) {
-      return sum + item.weight;
-    }, 0);
-    var gap = 7.2;
-    var usable = RING_CIRCUMFERENCE - gap * SCORE_SEGMENTS.length;
-    var cursor = 0;
-    return SCORE_SEGMENTS.map(function (meta, index) {
-      var segment = segments[index];
-      var length = usable * (meta.weight / totalWeight);
-      var midRatio = (cursor + length / 2) / RING_CIRCUMFERENCE;
-      var angle = -90 + midRatio * 360;
-      var rad = (angle * Math.PI) / 180;
-      var radius = 96;
-      var x = 90 + Math.cos(rad) * radius;
-      var y = 90 + Math.sin(rad) * radius;
-      var side = y > 92 ? "is-bottom" : "is-top";
-      var horizontal = x > 118 ? "is-right" : x < 62 ? "is-left" : "is-center";
-      var displayStatus = ready ? segment.status : "pending";
-      cursor += length + gap;
+  function scoreNodeStatusClass(status) {
+    return ["green", "amber", "red", "neutral"].indexOf(status) >= 0 ? status : "pending";
+  }
+
+  function renderScoreNodes(segments) {
+    var segmentById = {};
+    segments.forEach(function (segment) {
+      segmentById[segment.id] = segment;
+    });
+    return SCORE_SEGMENTS.map(function (meta) {
+      var segment = segmentById[meta.id] || {
+        id: meta.id,
+        name: meta.label,
+        max: 0,
+        penalty: 0,
+        status: "pending",
+        detail: "等待检测结果"
+      };
+      var displayStatus = scoreNodeStatusClass(segment.status);
+      var tipId = "score-node-tip-" + meta.id;
+      var active = state.pinnedScoreNode === meta.id;
       return (
-        '<button class="score-metric score-metric-' +
-        statusClass(displayStatus) +
-        " " +
-        side +
-        " " +
-        horizontal +
-        '" type="button" style="left:' +
-        x.toFixed(1) +
-        "px;top:" +
-        y.toFixed(1) +
-        'px" aria-label="' +
+        '<button class="score-node score-node-' +
+        displayStatus +
+        (active ? " is-active is-pinned" : "") +
+        '" type="button" data-score-segment="' +
+        escapeHtml(meta.id) +
+        '" data-status="' +
+        escapeHtml(displayStatus) +
+        '" aria-label="' +
         escapeHtml(segment.name + "：" + segmentStatusText(segment) + "，" + segmentPenaltyText(segment)) +
+        '" aria-describedby="' +
+        tipId +
+        '" aria-controls="' +
+        tipId +
+        '" aria-expanded="' +
+        (active ? "true" : "false") +
         '">' +
-        '<span class="score-metric-label">' +
-        escapeHtml(segment.label) +
-        "</span>" +
-        '<span class="score-metric-tip" role="tooltip"><strong class="score-tip-title">' +
+        '<svg class="score-node-icon" aria-hidden="true" viewBox="0 0 24 24"><use href="#' +
+        escapeHtml(meta.icon) +
+        '"></use></svg><span class="score-node-label">' +
+        escapeHtml(meta.label) +
+        '</span><span class="score-node-tip" id="' +
+        tipId +
+        '" role="tooltip"><strong class="score-tip-title">' +
         escapeHtml(segment.name) +
         '</strong><span class="score-tip-meta">状态：' +
         escapeHtml(segmentStatusText(segment)) +
@@ -3109,6 +3092,10 @@
   function renderNow() {
     state.renderScheduled = false;
     var active = document.activeElement;
+    var restoreScoreNode =
+      active && active.classList && active.classList.contains("score-node")
+        ? active.dataset.scoreSegment || ""
+        : "";
     var restoreMultiIp =
       active && active.id === "multi-ip"
         ? { start: active.selectionStart, end: active.selectionEnd }
@@ -3117,8 +3104,18 @@
     renderTopbar();
     renderScore();
     renderSections();
-    bindScoreMetricEvents();
+    bindScoreNodeEvents();
     bindDynamicEvents();
+    if (restoreScoreNode) {
+      var scoreNode = document.querySelector('[data-score-segment="' + restoreScoreNode + '"]');
+      if (scoreNode) {
+        try {
+          scoreNode.focus({ preventScroll: true });
+        } catch (err) {
+          scoreNode.focus();
+        }
+      }
+    }
     if (restoreMultiIp) {
       var input = $("#multi-ip");
       if (input) {
@@ -3156,14 +3153,20 @@
   function renderScore() {
     var ready = scoreReady();
     state.displayScore = state.score;
-    var key = scoreKey(state.score);
     var value = ready ? state.displayScore : "··";
     var segments = scoreSegmentData();
     $("#score-number").textContent = value;
-    $("#score-status").textContent = ready ? statusText[key] : "检测中";
-    $("#score-status").style.color = ready ? COLORS[key] : COLORS.pending;
-    $("#score-ring").innerHTML = renderScoreRingSegments(segments, state.score, ready);
-    $("#score-segment-hotspots").innerHTML = renderScoreSegmentHotspots(segments, ready);
+    $("#score-status").textContent = ready ? "综合信任分" : "检测中";
+    $("#score-status").style.color = "";
+    var scoreRing = $("#score-ring");
+    scoreRing.setAttribute(
+      "aria-label",
+      ready
+        ? "综合信任分：" + state.score + "/100，" + statusText[scoreKey(state.score)]
+        : "综合信任分：检测中"
+    );
+    scoreRing.innerHTML = renderScoreGauge(state.score, ready);
+    $("#score-nodes").innerHTML = renderScoreNodes(segments);
     $("#score-summary").innerHTML = highlightRiskText(summaryText());
     $("#score-insights").innerHTML = renderScoreInsights();
     var copySummary = $("#copy-summary");
@@ -3183,34 +3186,76 @@
     }
   }
 
-  function setActiveScoreMetric(button) {
-    document.querySelectorAll(".score-metric.is-active").forEach(function (metric) {
-      if (metric !== button) {
-        metric.classList.remove("is-active");
+  function closeScoreNode(button) {
+    button.classList.remove("is-active", "is-pinned");
+    button.setAttribute("aria-expanded", "false");
+  }
+
+  function closeScoreNodes(except) {
+    document.querySelectorAll(".score-node").forEach(function (button) {
+      if (button !== except) {
+        closeScoreNode(button);
       }
     });
-    if (button) {
-      button.classList.add("is-active");
+  }
+
+  function openScoreNode(button, pinned) {
+    closeScoreNodes(button);
+    button.classList.add("is-active");
+    button.classList.toggle("is-pinned", Boolean(pinned));
+    button.setAttribute("aria-expanded", "true");
+  }
+
+  function restorePinnedScoreNode(except) {
+    if (!state.pinnedScoreNode) {
+      return;
+    }
+    var pinned = document.querySelector('[data-score-segment="' + state.pinnedScoreNode + '"]');
+    if (pinned && pinned !== except) {
+      openScoreNode(pinned, true);
     }
   }
 
-  function bindScoreMetricEvents() {
-    document.querySelectorAll(".score-metric").forEach(function (button) {
+  function bindScoreNodeEvents() {
+    document.querySelectorAll(".score-node").forEach(function (button) {
+      var id = button.dataset.scoreSegment;
       button.addEventListener("mouseenter", function () {
-        setActiveScoreMetric(button);
+        openScoreNode(button, state.pinnedScoreNode === id);
       });
       button.addEventListener("focus", function () {
-        setActiveScoreMetric(button);
+        openScoreNode(button, state.pinnedScoreNode === id);
       });
       button.addEventListener("mouseleave", function () {
-        button.classList.remove("is-active");
+        if (document.activeElement === button || state.pinnedScoreNode === id) {
+          return;
+        }
+        closeScoreNode(button);
+        restorePinnedScoreNode(button);
       });
       button.addEventListener("blur", function () {
-        button.classList.remove("is-active");
+        if (!button.matches(":hover")) {
+          closeScoreNode(button);
+          restorePinnedScoreNode(button);
+        }
       });
       button.addEventListener("click", function (event) {
         event.stopPropagation();
-        setActiveScoreMetric(button);
+        if (state.pinnedScoreNode === id) {
+          state.pinnedScoreNode = "";
+          closeScoreNode(button);
+          return;
+        }
+        state.pinnedScoreNode = id;
+        openScoreNode(button, true);
+      });
+      button.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") {
+          return;
+        }
+        event.preventDefault();
+        state.pinnedScoreNode = "";
+        closeScoreNodes();
+        button.blur();
       });
     });
   }
@@ -3702,8 +3747,12 @@
       copyText(diagnosticSummaryText(), "diagnostic-summary");
     });
     document.addEventListener("click", function (event) {
-      if (!event.target.closest(".score-metric")) {
-        setActiveScoreMetric(null);
+      if (!event.target.closest(".score-node")) {
+        state.pinnedScoreNode = "";
+        closeScoreNodes();
+        if (document.activeElement && document.activeElement.classList.contains("score-node")) {
+          document.activeElement.blur();
+        }
       }
     });
     document.querySelectorAll("[data-region]").forEach(function (button) {

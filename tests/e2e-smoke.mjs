@@ -170,6 +170,30 @@ async function waitForScore(page, timeout = 60000) {
   return Number(await page.locator("#score-number").innerText());
 }
 
+async function scoreNodeSnapshot(page) {
+  return page.locator("#score-nodes .score-node").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const icon = node.querySelector(".score-node-icon");
+      const use = icon?.querySelector("use");
+      const href = use?.getAttribute("href") || "";
+      const iconRect = icon?.getBoundingClientRect();
+      return {
+        id: node.dataset.scoreSegment,
+        status: node.dataset.status,
+        label: node.querySelector(".score-node-label")?.textContent.trim(),
+        expanded: node.getAttribute("aria-expanded"),
+        controls: node.getAttribute("aria-controls"),
+        iconHref: href,
+        hasIcon:
+          Boolean(href && document.querySelector(href)) &&
+          iconRect?.width > 0 &&
+          iconRect?.height > 0 &&
+          getComputedStyle(icon).visibility !== "hidden",
+      };
+    }),
+  );
+}
+
 // ---------- 场景定义 ----------
 const scenarios = [
   {
@@ -185,6 +209,118 @@ const scenarios = [
       ok("no page errors", errors.length === 0, errors.join(" | ").slice(0, 200));
       const insights = await page.locator("#score-insights").innerText();
       ok("hosting exit flagged", insights.includes("机房 / VPN 出口"), insights.replace(/\s+/g, " ").slice(0, 60));
+      const nodes = await scoreNodeSnapshot(page);
+      ok("six score nodes rendered", nodes.length === 6, JSON.stringify(nodes));
+      ok(
+        "score node ids are stable",
+        nodes.map((node) => node.id).join(",") === "ip,identity,leak,conn,ai,multi",
+        JSON.stringify(nodes),
+      );
+      ok(
+        "score node labels match the approved A layout",
+        nodes.map((node) => node.label).join(",") === "出口 IP,身份,泄漏,网络连通,AI 出口,多源互证",
+        JSON.stringify(nodes),
+      );
+      ok(
+        "score nodes expose SVG, status and collapsed aria state",
+        nodes.length === 6 &&
+          nodes.every(
+            (node) =>
+              node.hasIcon &&
+              node.iconHref === `#score-icon-${node.id}` &&
+              node.status &&
+              node.expanded === "false" &&
+              node.controls === `score-node-tip-${node.id}`,
+          ),
+        JSON.stringify(nodes),
+      );
+      const ipNode = nodes.find((node) => node.id === "ip");
+      ok("hosting IP node is amber", ipNode?.status === "amber", JSON.stringify(ipNode));
+      const connectors = await page.locator("#score-nodes > svg, #score-nodes > .score-connector").count();
+      ok("score nodes have no connector lines", connectors === 0, `count=${connectors}`);
+      await page.close();
+    },
+  },
+  {
+    name: "A 方案评分节点：单气泡交互与移动端无横向溢出",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await routeFixtures(page, base.origin, { ipDelays: { "ipwho.is": 900 } });
+      await page.goto(base.href);
+      const identity = page.locator('[data-score-segment="identity"]');
+      await identity.waitFor({ state: "visible" });
+      await identity.focus();
+      await identity.evaluate((node) => node.setAttribute("data-focus-probe", "before-render"));
+      await page.waitForFunction(
+        () => !document.querySelector('[data-score-segment="identity"]')?.hasAttribute("data-focus-probe"),
+        null,
+        { timeout: 10000 },
+      );
+      const focusAfterRender = await page.evaluate(() => document.activeElement?.dataset?.scoreSegment || "");
+      ok("score-node focus survives an async result re-render", focusAfterRender === "identity", focusAfterRender || "BODY");
+      await waitForScore(page);
+      const scoreNodes = page.locator("#score-nodes .score-node");
+      const count = await scoreNodes.count();
+      ok("mobile renders all six nodes", count === 6, `count=${count}`);
+      if (count !== 6) {
+        await page.close();
+        return;
+      }
+      const ip = page.locator('[data-score-segment="ip"]');
+      await ip.click();
+      ok("click pins one tooltip", (await ip.getAttribute("aria-expanded")) === "true");
+      await page.waitForTimeout(220);
+      const ipTip = await ip.locator(".score-node-tip").evaluate((tip) => {
+        const rect = tip.getBoundingClientRect();
+        const style = getComputedStyle(tip);
+        return {
+          visible: style.visibility === "visible" && Number(style.opacity) > 0.9,
+          inViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+        };
+      });
+      ok("pinned tooltip is visibly rendered inside the viewport", ipTip.visible && ipTip.inViewport, JSON.stringify(ipTip));
+      await identity.focus();
+      const openAfterFocus = await page.locator('.score-node[aria-expanded="true"]').count();
+      ok(
+        "focus keeps only one tooltip open",
+        openAfterFocus === 1 && (await identity.getAttribute("aria-expanded")) === "true",
+        `open=${openAfterFocus}`,
+      );
+      await identity.press("Escape");
+      await page.waitForTimeout(220);
+      const openAfterEscape = await page.locator('.score-node[aria-expanded="true"]').count();
+      const visibleAfterEscape = await page.locator(".score-node-tip").evaluateAll((tips) =>
+        tips.filter((tip) => {
+          const style = getComputedStyle(tip);
+          return style.visibility === "visible" || Number(style.opacity) > 0;
+        }).length,
+      );
+      ok("Escape closes every tooltip", openAfterEscape === 0 && visibleAfterEscape === 0, `open=${openAfterEscape}, visible=${visibleAfterEscape}`);
+
+      await page.setViewportSize({ width: 300, height: 700 });
+      const narrowAudit = [];
+      for (const id of ["ip", "identity", "leak", "conn", "ai", "multi"]) {
+        const node = page.locator(`[data-score-segment="${id}"]`);
+        await node.click();
+        await page.waitForTimeout(220);
+        narrowAudit.push(
+          await node.locator(".score-node-tip").evaluate((tip, segment) => {
+            const rect = tip.getBoundingClientRect();
+            const style = getComputedStyle(tip);
+            return {
+              id: segment,
+              visible: style.visibility === "visible" && Number(style.opacity) > 0.9,
+              inViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+              overflow: document.documentElement.scrollWidth - innerWidth,
+            };
+          }, id),
+        );
+      }
+      ok(
+        "300px layout keeps every active tooltip visible without horizontal overflow",
+        narrowAudit.every((item) => item.visible && item.inViewport && item.overflow <= 0),
+        JSON.stringify(narrowAudit),
+      );
       await page.close();
     },
   },
@@ -231,6 +367,8 @@ const scenarios = [
       const before = await waitForScore(page);
       const webrtcBefore = await page.locator('[data-row="webrtc"] .row-value').innerText();
       ok("baseline flags WebRTC leak", webrtcBefore.includes("发现出口外公网候选"), webrtcBefore);
+      const leakNodeBefore = await page.locator('[data-score-segment="leak"]').getAttribute("data-status");
+      ok("WebRTC leak marks the leak node red", leakNodeBefore === "red", String(leakNodeBefore));
       flags.blockIpSources = true;
       await page.click('[data-row="ip"]');
       await page.click('[data-action="run-ip"]');

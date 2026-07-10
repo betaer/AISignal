@@ -12,9 +12,10 @@
     "build": "npm run clean:sites && WRANGLER_LOG_PATH=.wrangler/wrangler.log vite build",
     "preview": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite preview --host 127.0.0.1",
     "build:min": "node scripts/build-min.mjs",
+    "build:css": "node scripts/build-css.mjs",
     "test": "npm run build && node --test tests/sites-worker.test.mjs",
     "test:e2e": "node tests/e2e-smoke.mjs",
-    "check": "node --check app.js && node --check app.min.js && node scripts/build-min.mjs --check && npm test",
+    "check": "node --check app.js && node --check app.min.js && node scripts/build-min.mjs --check && node scripts/build-css.mjs --check && npm test",
     "check:full": "npm run check && npm run test:e2e"
   },
   "devDependencies": {

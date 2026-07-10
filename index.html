@@ -23,18 +23,77 @@
     <meta name="twitter:image" content="https://betaer.github.io/AiSignalGuard/assets/og.png">
     <meta name="twitter:image:alt" content="AI Signal Guard 浏览器端 AI 网络与身份信号体检">
     <link rel="icon" href="favicon.svg?v=20260708-3" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.min.css?v=20260709-12">
+    <link rel="stylesheet" href="styles.min.css?v=20260710-2">
     <script>
       window.dataLayer = window.dataLayer || [];
       window.gtag = window.gtag || function () {
         window.dataLayer.push(arguments);
       };
     </script>
-    <script vite-ignore src="app.min.js?v=20260710-7" defer></script>
+    <script vite-ignore src="app.min.js?v=20260710-9" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">跳到检测结果</a>
     <div class="grain" aria-hidden="true"></div>
+
+    <!-- Tabler Icons 3.34.1 · MIT · Copyright (c) 2020-2024 Paweł Kuna. Full notice: tips-demo.html -->
+    <svg class="score-icon-library" aria-hidden="true" focusable="false">
+      <symbol id="score-icon-ip" viewBox="0 0 24 24">
+        <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"></path>
+        <path d="M3.6 9h16.8"></path>
+        <path d="M3.6 15h16.8"></path>
+        <path d="M11.5 3a17 17 0 0 0 0 18"></path>
+        <path d="M12.5 3a17 17 0 0 1 0 18"></path>
+      </symbol>
+      <symbol id="score-icon-identity" viewBox="0 0 24 24">
+        <path d="M7 12h3v4h-3z"></path>
+        <path d="M10 6h-6a1 1 0 0 0 -1 1v12a1 1 0 0 0 1 1h16a1 1 0 0 0 1 -1v-12a1 1 0 0 0 -1 -1h-6"></path>
+        <path d="M10 3m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"></path>
+        <path d="M14 16h2"></path>
+        <path d="M14 12h4"></path>
+      </symbol>
+      <symbol id="score-icon-leak" viewBox="0 0 24 24">
+        <path d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06"></path>
+        <path d="M15 19l2 2l4 -4"></path>
+      </symbol>
+      <symbol id="score-icon-conn" viewBox="0 0 24 24">
+        <path d="M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0"></path>
+        <path d="M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6"></path>
+        <path d="M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6"></path>
+        <path d="M6 9h12"></path>
+        <path d="M3 20h7"></path>
+        <path d="M14 20h7"></path>
+        <path d="M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"></path>
+        <path d="M12 15v3"></path>
+      </symbol>
+      <symbol id="score-icon-ai" viewBox="0 0 24 24">
+        <path d="M5 5m0 1a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1z"></path>
+        <path d="M9 9h6v6h-6z"></path>
+        <path d="M3 10h2"></path>
+        <path d="M3 14h2"></path>
+        <path d="M10 3v2"></path>
+        <path d="M14 3v2"></path>
+        <path d="M21 10h-2"></path>
+        <path d="M21 14h-2"></path>
+        <path d="M14 21v-2"></path>
+        <path d="M10 21v-2"></path>
+      </symbol>
+      <symbol id="score-icon-multi" viewBox="0 0 24 24">
+        <path d="M10 19a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"></path>
+        <path d="M18 5a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"></path>
+        <path d="M10 5a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"></path>
+        <path d="M6 12a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"></path>
+        <path d="M18 19a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"></path>
+        <path d="M14 12a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"></path>
+        <path d="M22 12a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"></path>
+        <path d="M6 12h4"></path>
+        <path d="M14 12h4"></path>
+        <path d="M15 7l-2 3"></path>
+        <path d="M9 7l2 3"></path>
+        <path d="M11 14l-2 3"></path>
+        <path d="M13 14l2 3"></path>
+      </symbol>
+    </svg>
 
     <header class="topbar">
       <div class="topbar-inner">
@@ -73,13 +132,15 @@
     <main class="shell" id="main">
       <section class="score-stage" id="sec-score" aria-labelledby="score-title">
         <p class="eyebrow" id="score-title">综合信任评估 · Trust Score</p>
-        <div class="score-ring">
-          <svg id="score-ring" viewBox="0 0 120 120" role="img" aria-label="综合信任分进度和分项评分"></svg>
-          <div class="score-segment-hotspots" id="score-segment-hotspots" role="group" aria-label="评分分项详情"></div>
-          <div class="score-copy">
-            <span class="score-number" id="score-number">··</span>
-            <span class="score-status" id="score-status">检测中</span>
+        <div class="score-orbit">
+          <div class="score-core">
+            <svg id="score-ring" class="score-gauge" viewBox="0 0 120 120" role="img" aria-label="综合信任分进度"></svg>
+            <div class="score-copy" role="status" aria-live="polite" aria-atomic="true">
+              <span class="score-number" id="score-number">··</span>
+              <span class="score-status" id="score-status">检测中</span>
+            </div>
           </div>
+          <div class="score-nodes" id="score-nodes" role="group" aria-label="评分分项详情"></div>
         </div>
         <p class="score-summary" id="score-summary">正在运行本地与联网检测…</p>
         <div class="score-insights" id="score-insights" aria-live="polite"></div>
