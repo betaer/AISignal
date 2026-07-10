@@ -10,8 +10,9 @@
     <meta property="og:title" content="AI Signal Guard">
     <meta property="og:description" content="Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://betaer.github.io/AISignalGuard/">
-    <meta property="og:image" content="https://betaer.github.io/AISignalGuard/assets/og.png">
+    <link rel="canonical" href="https://betaer.github.io/AiSignalGuard/">
+    <meta property="og:url" content="https://betaer.github.io/AiSignalGuard/">
+    <meta property="og:image" content="https://betaer.github.io/AiSignalGuard/assets/og.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:alt" content="AI Signal Guard 浏览器端 AI 网络与身份信号体检">
     <meta property="og:image:width" content="1280">
@@ -19,7 +20,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="AI Signal Guard">
     <meta name="twitter:description" content="Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.">
-    <meta name="twitter:image" content="https://betaer.github.io/AISignalGuard/assets/og.png">
+    <meta name="twitter:image" content="https://betaer.github.io/AiSignalGuard/assets/og.png">
     <meta name="twitter:image:alt" content="AI Signal Guard 浏览器端 AI 网络与身份信号体检">
     <link rel="icon" href="favicon.svg?v=20260708-3" type="image/svg+xml">
     <link rel="stylesheet" href="styles.min.css?v=20260709-12">
@@ -29,7 +30,7 @@
         window.dataLayer.push(arguments);
       };
     </script>
-    <script vite-ignore src="app.min.js?v=20260710-2" defer></script>
+    <script vite-ignore src="app.min.js?v=20260710-7" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">跳到检测结果</a>
@@ -48,7 +49,7 @@
           <button class="text-action" id="run-all" type="button">↻ 重测</button>
           <a
             class="github-link"
-            href="https://github.com/betaer/AISignalGuard"
+            href="https://github.com/betaer/AiSignalGuard"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="打开 GitHub 仓库"
@@ -109,9 +110,13 @@
             路径出口在<span class="china-emphasis">中国</span> -15。
           </p>
           <p>
-            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 语言含中文 -4 · 时区在<span class="china-emphasis">中国</span> -4 ·
-            Emoji / 字体弱信号各 -1。
-            多源 IP 情报冲突 -4。
+            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 出口 IP 未测出 -8 · 语言含中文 -4 ·
+            时区在<span class="china-emphasis">中国</span> -4 · Emoji / 字体弱信号各 -1。
+            多源 IP 情报冲突（至少 3 个地理来源、2 个及以上分歧时）-4。
+          </p>
+          <p>
+            不适用或证据不足的检测项（如 Windows 上的 Emoji 项、地理来源不足的多源交叉）按中性处理，不扣分也不标绿；
+            出口 IP 完全读不到是例外，按上面“未测出 -8”计。
           </p>
           <p>AI 官方服务状态只用于排查平台故障，不参与综合信任分。</p>
         </div>
@@ -123,6 +128,10 @@
             STUN、连通性探测、DNS 泄漏检测、AI 路径和 AI 服务状态。
           </p>
           <p>顶栏隐私模式会模糊 IP、组织、DNS 等敏感字段，方便截图讨论。</p>
+          <p>
+            本站使用 Google Analytics 统计访问情况（延迟加载）。GA 会向 Google 发送页面地址、页面来源
+            （referrer）、客户端标识、语言、屏幕分辨率、浏览器与系统版本等元数据；本页的检测结果本身不会上传。
+          </p>
         </div>
       </section>
 
@@ -131,13 +140,13 @@
 
     <footer class="site-footer">
       <div>
-        <a href="https://betaer.github.io/AISignalGuard/" target="_blank" rel="noopener noreferrer">AI Signal Guard</a>
+        <a href="https://betaer.github.io/AiSignalGuard/" target="_blank" rel="noopener noreferrer">AI Signal Guard</a>
         <span>Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.</span>
       </div>
       <div>
-        <a href="https://github.com/betaer/AISignalGuard/issues/new/choose" target="_blank" rel="noopener noreferrer">反馈问题</a>
-        <a href="https://github.com/betaer/AISignalGuard/commits/main/" target="_blank" rel="noopener noreferrer">更新日志</a>
-        <a href="https://github.com/betaer/AISignalGuard" target="_blank" rel="noopener noreferrer">源码</a>
+        <a href="https://github.com/betaer/AiSignalGuard/issues/new/choose" target="_blank" rel="noopener noreferrer">反馈问题</a>
+        <a href="https://github.com/betaer/AiSignalGuard/commits/main/" target="_blank" rel="noopener noreferrer">更新日志</a>
+        <a href="https://github.com/betaer/AiSignalGuard" target="_blank" rel="noopener noreferrer">源码</a>
       </div>
     </footer>
 

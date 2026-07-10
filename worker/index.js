@@ -1,4 +1,4 @@
-const LEGACY_SITE_BASE = "https://betaer.github.io/AISignalGuard/";
+const GITHUB_PAGES_BASE = "https://betaer.github.io/AiSignalGuard/";
 
 const SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -25,7 +25,7 @@ async function withSiteOrigin(response, origin) {
 
   const html = await response.text();
   return {
-    body: html.replaceAll(LEGACY_SITE_BASE, `${origin}/`),
+    body: html.replaceAll(GITHUB_PAGES_BASE, `${origin}/`),
     isHtml: true,
   };
 }

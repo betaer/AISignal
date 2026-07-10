@@ -82,7 +82,7 @@ test("serves the product homepage and rewrites share metadata to its Sites origi
   const html = await response.text();
   assert.match(html, /<title>AI Signal Guard/);
   assert.match(html, /https:\/\/ai-signal-guard\.example\/assets\//);
-  assert.doesNotMatch(html, /betaer\.github\.io\/AISignalGuard/);
+  assert.doesNotMatch(html, /betaer\.github\.io\/aisignalguard/i);
 });
 
 test("serves the browser bundle through the assets binding", async () => {
@@ -101,7 +101,7 @@ test("serves the browser bundle through the assets binding", async () => {
   const javascript = await response.text();
   assert.ok(javascript.length > 50_000);
   assert.match(javascript, /window\.location\.href/);
-  assert.doesNotMatch(javascript, /betaer\.github\.io\/AISignalGuard/);
+  assert.doesNotMatch(javascript, /betaer\.github\.io\/aisignalguard/i);
 });
 
 test("returns the branded 404 page with an actual 404 status", async () => {

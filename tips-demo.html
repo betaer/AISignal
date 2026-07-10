@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>AiSignalGuard · 信任分节点视觉方案存档</title>
+  <style>
+    :root {
+      --page: #f4f6f8;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --ink: #111827;
+      --muted: #667085;
+      --line: #dde3ea;
+      --line-soft: #edf1f5;
+      --green: #1f9d4b;
+      --green-bg: #eaf8ef;
+      --green-line: #9bd8ae;
+      --red: #d53d48;
+      --red-bg: #fff0f1;
+      --red-line: #efb0b5;
+      --amber: #c9820a;
+      --amber-bg: #fff7e6;
+      --amber-line: #ebc779;
+      --neutral: #68758a;
+      --neutral-bg: #f0f3f7;
+      --neutral-line: #c8d0da;
+      --shadow: 0 22px 60px rgba(15, 23, 42, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { min-width: 320px; background: var(--page); }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    button { font: inherit; }
+
+    .page-shell {
+      width: min(1500px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 48px 0 64px;
+    }
+
+    .page-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 26px;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 3.4vw, 50px);
+      line-height: 1.08;
+      letter-spacing: -.045em;
+    }
+
+    .intro {
+      max-width: 780px;
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .decision {
+      max-width: 340px;
+      padding: 15px 17px;
+      border: 1px solid var(--green-line);
+      border-radius: 16px;
+      background: var(--green-bg);
+      color: #176d38;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .decision strong { display: block; margin-bottom: 3px; font-size: 14px; }
+
+    .scheme-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .scheme {
+      position: relative;
+      min-width: 0;
+      overflow: visible;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .scheme.is-chosen {
+      border-color: var(--green-line);
+      box-shadow: 0 0 0 3px rgba(31, 157, 75, .10), var(--shadow);
+    }
+
+    .scheme-badge {
+      position: absolute;
+      z-index: 20;
+      top: 16px;
+      right: 16px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--ink);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .06em;
+    }
+
+    .scheme.is-chosen .scheme-badge { background: var(--green); }
+
+    .preview {
+      min-height: 406px;
+      padding: 44px 18px 22px;
+      overflow: visible;
+      border-radius: 24px 24px 0 0;
+      background: var(--surface-soft);
+    }
+
+    .orbital {
+      position: relative;
+      width: min(100%, 360px);
+      aspect-ratio: 1;
+      margin: 0 auto;
+    }
+
+    .score-core {
+      position: absolute;
+      z-index: 2;
+      left: 50%;
+      top: 50%;
+      width: clamp(112px, 31%, 132px);
+      aspect-ratio: 1;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: var(--surface);
+      box-shadow: 0 14px 36px rgba(15, 23, 42, .11);
+    }
+
+    .score-gauge {
+      position: absolute;
+      inset: -10px;
+      width: calc(100% + 20px);
+      height: calc(100% + 20px);
+      overflow: visible;
+      transform: rotate(-90deg);
+    }
+
+    .score-gauge circle {
+      fill: none;
+      stroke-width: 6;
+    }
+
+    .score-track { stroke: #e4e9ef; }
+    .score-value { stroke: var(--green); stroke-linecap: round; stroke-dasharray: 77 100; }
+
+    .score-copy {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      text-align: center;
+    }
+
+    .score-copy strong {
+      display: block;
+      font-size: clamp(36px, 4vw, 46px);
+      line-height: .95;
+      letter-spacing: -.06em;
+    }
+
+    .score-copy span {
+      display: block;
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .node {
+      --node-color: var(--neutral);
+      --node-bg: var(--neutral-bg);
+      --node-line: var(--neutral-line);
+      --node-glow: rgba(104, 117, 138, .18);
+      position: absolute;
+      z-index: 8;
+      left: var(--x);
+      top: var(--y);
+      width: 50px;
+      height: 50px;
+      padding: 0;
+      transform: translate(-50%, -50%);
+      border: 1px solid var(--node-line);
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: var(--node-color);
+      background: var(--node-bg);
+      box-shadow: 0 9px 22px rgba(15, 23, 42, .10);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .16s ease, box-shadow .16s ease;
+    }
+
+    .node.compact { width: 42px; height: 42px; border-radius: 13px; }
+    .node.auxiliary { width: 36px; height: 36px; border-radius: 11px; }
+
+    .pos-a1 { --x: 50%; --y: 11%; }
+    .pos-a2 { --x: 83%; --y: 31%; }
+    .pos-a3 { --x: 83%; --y: 69%; }
+    .pos-a4 { --x: 50%; --y: 89%; }
+    .pos-a5 { --x: 17%; --y: 69%; }
+    .pos-a6 { --x: 17%; --y: 31%; }
+
+    .pos-b1 { --x: 50%; --y: 8%; }
+    .pos-b2 { --x: 77%; --y: 18%; }
+    .pos-b3 { --x: 92%; --y: 42%; }
+    .pos-b4 { --x: 86%; --y: 72%; }
+    .pos-b5 { --x: 65%; --y: 89%; }
+    .pos-b6 { --x: 35%; --y: 89%; }
+    .pos-b7 { --x: 14%; --y: 72%; }
+    .pos-b8 { --x: 8%; --y: 42%; }
+    .pos-b9 { --x: 23%; --y: 18%; }
+
+    .pos-c1 { --x: 50%; --y: 18%; }
+    .pos-c2 { --x: 80%; --y: 33%; }
+    .pos-c3 { --x: 80%; --y: 67%; }
+    .pos-c4 { --x: 50%; --y: 82%; }
+    .pos-c5 { --x: 20%; --y: 67%; }
+    .pos-c6 { --x: 20%; --y: 33%; }
+    .pos-c7 { --x: 91%; --y: 14%; }
+    .pos-c8 { --x: 9%; --y: 14%; }
+    .pos-c9 { --x: 50%; --y: 96%; }
+
+    .node.good {
+      --node-color: var(--green);
+      --node-bg: var(--green-bg);
+      --node-line: var(--green-line);
+      --node-glow: rgba(31, 157, 75, .22);
+    }
+
+    .node.bad {
+      --node-color: var(--red);
+      --node-bg: var(--red-bg);
+      --node-line: var(--red-line);
+      --node-glow: rgba(213, 61, 72, .22);
+    }
+
+    .node.warn {
+      --node-color: var(--amber);
+      --node-bg: var(--amber-bg);
+      --node-line: var(--amber-line);
+      --node-glow: rgba(201, 130, 10, .22);
+    }
+
+    .node:hover,
+    .node:focus-visible,
+    .node.is-open {
+      z-index: 40;
+      outline: none;
+      transform: translate(-50%, -50%) scale(1.09);
+      box-shadow: 0 12px 28px var(--node-glow);
+    }
+
+    .node:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 3px; }
+
+    .node-icon {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .compact .node-icon { width: 20px; height: 20px; }
+    .auxiliary .node-icon { width: 17px; height: 17px; }
+
+    .node-label {
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 8px);
+      min-width: 76px;
+      transform: translateX(-50%);
+      color: #445166;
+      font-size: 10px;
+      font-weight: 760;
+      line-height: 1.2;
+      text-align: center;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .compact .node-label { min-width: 62px; font-size: 9px; }
+    .auxiliary .node-label { color: #6c788a; font-size: 9px; }
+    .label-above .node-label { top: auto; bottom: calc(100% + 8px); }
+
+    .bubble {
+      position: absolute;
+      z-index: 50;
+      left: 50%;
+      bottom: calc(100% + 12px);
+      width: 188px;
+      padding: 12px 13px;
+      transform: translate(-50%, 7px) scale(.97);
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      visibility: hidden;
+      opacity: 0;
+      color: #344054;
+      background: rgba(255, 255, 255, .98);
+      box-shadow: 0 18px 42px rgba(15, 23, 42, .18);
+      font-size: 11px;
+      font-weight: 540;
+      line-height: 1.55;
+      text-align: left;
+      pointer-events: none;
+      transition: opacity .14s ease, transform .14s ease, visibility .14s;
+    }
+
+    .bubble.below { top: calc(100% + 12px); bottom: auto; transform: translate(-50%, -7px) scale(.97); }
+    .edge-left .bubble { left: 0; transform: translate(0, 7px) scale(.97); }
+    .edge-left .bubble.below { transform: translate(0, -7px) scale(.97); }
+    .edge-right .bubble { right: 0; left: auto; transform: translate(0, 7px) scale(.97); }
+    .edge-right .bubble.below { transform: translate(0, -7px) scale(.97); }
+
+    .bubble strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--node-color);
+      font-size: 11px;
+      font-weight: 820;
+    }
+
+    .node.is-open .bubble {
+      visibility: visible;
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .node.edge-left.is-open .bubble,
+    .node.edge-right.is-open .bubble { transform: translate(0, 0) scale(1); }
+
+    .scheme-copy {
+      min-height: 150px;
+      padding: 20px 21px 24px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .scheme-title {
+      display: flex;
+      gap: 11px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .scheme-letter {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 auto;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--ink);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .is-chosen .scheme-letter { background: var(--green); }
+
+    .scheme h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+
+    .scheme-copy p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px 20px;
+      margin-top: 24px;
+      padding: 15px 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .72);
+      font-size: 11px;
+    }
+
+    .legend span { display: inline-flex; gap: 7px; align-items: center; }
+    .legend i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+    .legend-good { color: var(--green); }
+    .legend-bad { color: var(--red); }
+    .legend-warn { color: var(--amber); }
+    .legend-neutral { color: var(--neutral); }
+
+    .archive-note {
+      margin: 20px auto 0;
+      color: #7b8797;
+      font-size: 11px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .icon-library { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+    @media (max-width: 1120px) {
+      .page-head { grid-template-columns: 1fr; }
+      .decision { max-width: none; }
+      .scheme-grid { grid-template-columns: 1fr; max-width: 640px; margin: 0 auto; }
+      .preview { min-height: 420px; }
+    }
+
+    @media (max-width: 560px) {
+      .page-shell { width: min(100% - 22px, 460px); padding: 28px 0 40px; }
+      .page-head { gap: 16px; }
+      .intro { font-size: 13px; }
+      .scheme { border-radius: 20px; }
+      .preview { min-height: 360px; padding: 42px 8px 12px; border-radius: 20px 20px 0 0; }
+      .orbital { width: min(100%, 330px); }
+      .node { width: 44px; height: 44px; border-radius: 14px; }
+      .node.compact { width: 38px; height: 38px; }
+      .node.auxiliary { width: 34px; height: 34px; }
+      .node-icon { width: 21px; height: 21px; }
+      .node-label { min-width: 64px; font-size: 9px; }
+      .bubble { width: 164px; }
+      .scheme-copy { min-height: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <!--
+    Standard UI icons sourced from Tabler Icons 3.34.1.
+    MIT License
+    Copyright (c) 2020-2024 Paweł Kuna
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+  -->
+  <svg class="icon-library" aria-hidden="true">
+    <symbol id="icon-world" viewBox="0 0 24 24">
+      <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M11.5 3a17 17 0 0 0 0 18"/><path d="M12.5 3a17 17 0 0 1 0 18"/>
+    </symbol>
+    <symbol id="icon-id" viewBox="0 0 24 24">
+      <path d="M7 12h3v4h-3z"/><path d="M10 6h-6a1 1 0 0 0 -1 1v12a1 1 0 0 0 1 1h16a1 1 0 0 0 1 -1v-12a1 1 0 0 0 -1 -1h-6"/><path d="M10 3m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"/><path d="M14 16h2"/><path d="M14 12h4"/>
+    </symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24">
+      <path d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06"/><path d="M15 19l2 2l4 -4"/>
+    </symbol>
+    <symbol id="icon-network" viewBox="0 0 24 24">
+      <path d="M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0"/><path d="M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6"/><path d="M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6"/><path d="M6 9h12"/><path d="M3 20h7"/><path d="M14 20h7"/><path d="M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M12 15v3"/>
+    </symbol>
+    <symbol id="icon-cpu" viewBox="0 0 24 24">
+      <path d="M5 5m0 1a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1z"/><path d="M9 9h6v6h-6z"/><path d="M3 10h2"/><path d="M3 14h2"/><path d="M10 3v2"/><path d="M14 3v2"/><path d="M21 10h-2"/><path d="M21 14h-2"/><path d="M14 21v-2"/><path d="M10 21v-2"/>
+    </symbol>
+    <symbol id="icon-multi" viewBox="0 0 24 24">
+      <path d="M10 19a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"/><path d="M18 5a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"/><path d="M10 5a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"/><path d="M6 12a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"/><path d="M18 19a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"/><path d="M14 12a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"/><path d="M22 12a2 2 0 1 0 -4 0a2 2 0 0 0 4 0z"/><path d="M6 12h4"/><path d="M14 12h4"/><path d="M15 7l-2 3"/><path d="M9 7l2 3"/><path d="M11 14l-2 3"/><path d="M13 14l2 3"/>
+    </symbol>
+    <symbol id="icon-status" viewBox="0 0 24 24"><path d="M3 12h4.5l1.5 -6l4 12l2 -9l1.5 3h4.5"/></symbol>
+    <symbol id="icon-fingerprint" viewBox="0 0 24 24">
+      <path d="M18.9 7a8 8 0 0 1 1.1 5v1a6 6 0 0 0 .8 3"/><path d="M8 11a4 4 0 0 1 8 0v1a10 10 0 0 0 2 6"/><path d="M12 11v2a14 14 0 0 0 2.5 8"/><path d="M8 15a18 18 0 0 0 1.8 6"/><path d="M4.9 19a22 22 0 0 1 -.9 -7v-1a8 8 0 0 1 12 -6.95"/>
+    </symbol>
+    <symbol id="icon-route" viewBox="0 0 24 24">
+      <path d="M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4z"/><path d="M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5"/>
+    </symbol>
+  </svg>
+
+  <main class="page-shell">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">AiSignalGuard · Visual Archive</p>
+        <h1>信任分节点视觉方案存档</h1>
+        <p class="intro">三套方案均取消连接线，以独立 SVG 图标节点围绕综合分。鼠标悬停、键盘聚焦或点击任一节点，可查看对应检测气泡。</p>
+      </div>
+      <aside class="decision" aria-label="最终设计结论">
+        <strong>最终采用 A · 6 个评分节点</strong>
+        内容更少、关键点更集中，整体最清晰美观；B 与 C 仅作为历史备选保留。
+      </aside>
+    </header>
+
+    <section class="scheme-grid" aria-label="三套视觉方案">
+      <article class="scheme is-chosen">
+        <span class="scheme-badge">已采用</span>
+        <div class="preview">
+          <div class="orbital">
+            <div class="score-core">
+              <svg class="score-gauge" viewBox="0 0 100 100" aria-hidden="true"><circle class="score-track" cx="50" cy="50" r="46" pathLength="100"/><circle class="score-value" cx="50" cy="50" r="46" pathLength="100"/></svg>
+              <div class="score-copy"><strong>77</strong><span>综合信任分</span></div>
+            </div>
+            <button class="node good pos-a1" type="button" aria-label="出口 IP：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-world"/></svg><span class="node-label">出口 IP</span><span class="bubble below"><strong>出口 IP · 通过</strong>多源出口一致，未命中中国口径。</span></button>
+            <button class="node bad edge-right pos-a2" type="button" aria-label="身份信号：风险" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-id"/></svg><span class="node-label">身份</span><span class="bubble"><strong>身份信号 · 风险</strong>语言、时区与出口地区存在冲突。</span></button>
+            <button class="node good edge-right pos-a3" type="button" aria-label="网络泄漏：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-shield"/></svg><span class="node-label">泄漏</span><span class="bubble"><strong>网络泄漏 · 通过</strong>WebRTC 与 DNS 未发现泄漏信号。</span></button>
+            <button class="node warn pos-a4" type="button" aria-label="网络连通：需留意" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-network"/></svg><span class="node-label">网络连通</span><span class="bubble"><strong>网络连通 · 需留意</strong>部分探针无法读取，暂不判定失败。</span></button>
+            <button class="node good edge-left pos-a5" type="button" aria-label="AI 出口：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-cpu"/></svg><span class="node-label">AI 出口</span><span class="bubble"><strong>AI 路径 · 通过</strong>检测到的 AI 服务出口均为非中国地区。</span></button>
+            <button class="node edge-left pos-a6" type="button" aria-label="多源互证：中性" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-multi"/></svg><span class="node-label">多源互证</span><span class="bubble"><strong>多源互证 · 中性</strong>有效地理来源不足 3 个，不扣分。</span></button>
+          </div>
+        </div>
+        <div class="scheme-copy"><div class="scheme-title"><span class="scheme-letter">A</span><h2>6 个评分节点</h2></div><p>只显示真正参与综合分的六个维度。节点更大、留白更充足，图标状态与分数口径一一对应。</p></div>
+      </article>
+
+      <article class="scheme">
+        <span class="scheme-badge">备选</span>
+        <div class="preview">
+          <div class="orbital">
+            <div class="score-core">
+              <svg class="score-gauge" viewBox="0 0 100 100" aria-hidden="true"><circle class="score-track" cx="50" cy="50" r="46" pathLength="100"/><circle class="score-value" cx="50" cy="50" r="46" pathLength="100"/></svg>
+              <div class="score-copy"><strong>77</strong><span>综合信任分</span></div>
+            </div>
+            <button class="node compact good pos-b1" type="button" aria-label="出口 IP：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-world"/></svg><span class="node-label">出口 IP</span><span class="bubble below"><strong>出口 IP · 通过</strong>多源出口一致。</span></button>
+            <button class="node compact bad edge-right pos-b2" type="button" aria-label="身份信号：风险" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-id"/></svg><span class="node-label">身份</span><span class="bubble below"><strong>身份 · 风险</strong>身份信号存在冲突。</span></button>
+            <button class="node compact good edge-right pos-b3" type="button" aria-label="网络泄漏：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-shield"/></svg><span class="node-label">泄漏</span><span class="bubble"><strong>泄漏 · 通过</strong>未发现网络泄漏。</span></button>
+            <button class="node compact warn edge-right pos-b4" type="button" aria-label="网络连通：需留意" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-network"/></svg><span class="node-label">连通</span><span class="bubble"><strong>连通 · 需留意</strong>部分探针无法读取。</span></button>
+            <button class="node compact good pos-b5" type="button" aria-label="AI 出口：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-cpu"/></svg><span class="node-label">AI 出口</span><span class="bubble"><strong>AI 出口 · 通过</strong>服务出口符合预期。</span></button>
+            <button class="node compact pos-b6" type="button" aria-label="多源互证：中性" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-multi"/></svg><span class="node-label">多源</span><span class="bubble"><strong>多源 · 中性</strong>证据不足，不扣分。</span></button>
+            <button class="node compact good edge-left pos-b7" type="button" aria-label="AI 状态：正常" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-status"/></svg><span class="node-label">AI 状态</span><span class="bubble"><strong>AI 状态 · 正常</strong>官方状态页未报告故障，不参与综合分。</span></button>
+            <button class="node compact edge-left pos-b8" type="button" aria-label="浏览器指纹：信息项" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-fingerprint"/></svg><span class="node-label">指纹</span><span class="bubble"><strong>浏览器指纹 · 信息</strong>展示采集结果，不参与综合分。</span></button>
+            <button class="node compact edge-left pos-b9" type="button" aria-label="路由追踪：手动项" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-route"/></svg><span class="node-label">路由</span><span class="bubble below"><strong>路由追踪 · 手动</strong>查看对应系统的手动检查命令。</span></button>
+          </div>
+        </div>
+        <div class="scheme-copy"><div class="scheme-title"><span class="scheme-letter">B</span><h2>9 个完整模块</h2></div><p>主要模块全部围绕分数，信息最完整；代价是图标更小，且指纹、路由等项目天然不能用红绿评分。</p></div>
+      </article>
+
+      <article class="scheme">
+        <span class="scheme-badge">备选</span>
+        <div class="preview">
+          <div class="orbital">
+            <div class="score-core">
+              <svg class="score-gauge" viewBox="0 0 100 100" aria-hidden="true"><circle class="score-track" cx="50" cy="50" r="46" pathLength="100"/><circle class="score-value" cx="50" cy="50" r="46" pathLength="100"/></svg>
+              <div class="score-copy"><strong>77</strong><span>综合信任分</span></div>
+            </div>
+            <button class="node good pos-c1" type="button" aria-label="出口 IP：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-world"/></svg><span class="node-label">出口 IP</span><span class="bubble below"><strong>出口 IP · 通过</strong>多源出口一致。</span></button>
+            <button class="node bad edge-right pos-c2" type="button" aria-label="身份信号：风险" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-id"/></svg><span class="node-label">身份</span><span class="bubble"><strong>身份 · 风险</strong>身份信号存在冲突。</span></button>
+            <button class="node good edge-right pos-c3" type="button" aria-label="网络泄漏：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-shield"/></svg><span class="node-label">泄漏</span><span class="bubble"><strong>泄漏 · 通过</strong>未发现网络泄漏。</span></button>
+            <button class="node warn label-above pos-c4" type="button" aria-label="网络连通：需留意" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-network"/></svg><span class="node-label">网络连通</span><span class="bubble"><strong>网络连通 · 需留意</strong>部分探针无法读取。</span></button>
+            <button class="node good edge-left pos-c5" type="button" aria-label="AI 出口：通过" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-cpu"/></svg><span class="node-label">AI 出口</span><span class="bubble"><strong>AI 出口 · 通过</strong>服务出口符合预期。</span></button>
+            <button class="node edge-left pos-c6" type="button" aria-label="多源互证：中性" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-multi"/></svg><span class="node-label">多源互证</span><span class="bubble"><strong>多源互证 · 中性</strong>证据不足，不扣分。</span></button>
+            <button class="node auxiliary good edge-right pos-c7" type="button" aria-label="AI 状态：正常" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-status"/></svg><span class="node-label">AI 状态</span><span class="bubble below"><strong>辅助 · AI 状态</strong>官方状态页正常，不参与综合分。</span></button>
+            <button class="node auxiliary edge-left pos-c8" type="button" aria-label="浏览器指纹：信息项" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-fingerprint"/></svg><span class="node-label">指纹</span><span class="bubble below"><strong>辅助 · 浏览器指纹</strong>信息展示项，不参与综合分。</span></button>
+            <button class="node auxiliary pos-c9" type="button" aria-label="路由追踪：手动项" aria-expanded="false"><svg class="node-icon" aria-hidden="true"><use href="#icon-route"/></svg><span class="node-label">路由</span><span class="bubble"><strong>辅助 · 路由追踪</strong>手动检查项，不参与综合分。</span></button>
+          </div>
+        </div>
+        <div class="scheme-copy"><div class="scheme-title"><span class="scheme-letter">C</span><h2>6 主 + 3 辅双层</h2></div><p>六个评分维度作为主层，三个非评分模块缩小放在外层；信息完整，但双层关系增加了视觉复杂度。</p></div>
+      </article>
+    </section>
+
+    <div class="legend" role="group" aria-label="状态颜色说明">
+      <span class="legend-good"><i></i>通过</span>
+      <span class="legend-bad"><i></i>扣分 / 高风险</span>
+      <span class="legend-warn"><i></i>需留意</span>
+      <span class="legend-neutral"><i></i>中性 / 检测中 / 手动项</span>
+    </div>
+    <p class="archive-note">本页仅作视觉方案存档，不接入真实检测数据。图标来自 Tabler Icons 3.34.1（MIT License）。</p>
+  </main>
+
+  <script>
+    const nodes = Array.from(document.querySelectorAll('.node'));
+
+    function closeNode(node) {
+      node.classList.remove('is-open', 'is-pinned');
+      node.setAttribute('aria-expanded', 'false');
+    }
+
+    function closeNodes(except) {
+      nodes.forEach((node) => {
+        if (node === except) return;
+        closeNode(node);
+      });
+    }
+
+    function openNode(node, pinned = false) {
+      closeNodes(node);
+      node.classList.add('is-open');
+      node.classList.toggle('is-pinned', pinned);
+      node.setAttribute('aria-expanded', 'true');
+    }
+
+    function restoreFocusedNode(except) {
+      const focused = document.activeElement;
+      if (!focused?.classList.contains('node') || focused === except) return;
+      openNode(focused);
+    }
+
+    nodes.forEach((node) => {
+      node.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (node.classList.contains('is-pinned')) closeNode(node);
+        else openNode(node, true);
+      });
+
+      node.addEventListener('mouseenter', () => {
+        openNode(node, node.classList.contains('is-pinned'));
+      });
+
+      node.addEventListener('mouseleave', () => {
+        if (document.activeElement === node) return;
+        closeNode(node);
+        restoreFocusedNode(node);
+      });
+
+      node.addEventListener('focus', () => {
+        openNode(node);
+      });
+
+      node.addEventListener('blur', () => {
+        if (!node.matches(':hover')) closeNode(node);
+      });
+
+      node.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        closeNode(node);
+        node.blur();
+      });
+    });
+
+    document.addEventListener('click', () => {
+      closeNodes();
+      if (document.activeElement?.classList.contains('node')) document.activeElement.blur();
+    });
+  </script>
+</body>
+</html>

@@ -8,3 +8,6 @@ dist/client/
 dist/server/
 dist/.openai/
 .wrangler/
+dist/*.zip
+dist/*.sha256
+index-demo.html

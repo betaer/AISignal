@@ -4,10 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI Signal Guard · 页面不存在</title>
+    <meta name="robots" content="noindex" />
     <meta name="theme-color" content="#f7f7f5" />
-    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css" />
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-8YCMR5G9CN"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag() {
@@ -15,8 +13,29 @@
       }
       gtag("js", new Date());
       gtag("config", "G-8YCMR5G9CN");
+      // 与主页一致：GA 延迟加载，不阻塞首屏。
+      window.setTimeout(function () {
+        var script = document.createElement("script");
+        script.async = true;
+        script.src = "https://www.googletagmanager.com/gtag/js?id=G-8YCMR5G9CN";
+        document.head.appendChild(script);
+      }, 3000);
     </script>
     <style>
+      /* 404 页面对任意深度路径生效，相对路径资源会失效，因此样式全部内联、不引外部文件。 */
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        background:
+          radial-gradient(circle at 50% 0%, rgba(122, 169, 129, 0.12), transparent 32rem),
+          linear-gradient(180deg, #f8f8f6 0%, #f7f7f5 32rem);
+        color: #1a1a18;
+        font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica,
+          "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
       .not-found {
         width: min(100% - 40px, 720px);
         min-height: 100dvh;
@@ -52,17 +71,49 @@
         font-size: 15px;
         line-height: 1.7;
       }
+
+      .button {
+        display: inline-block;
+        border: 1px solid #dededa;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #3f3f39;
+        cursor: pointer;
+        text-decoration: none;
+        font: 11.5px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        padding: 8px 13px;
+        transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+      }
+
+      .button:hover {
+        border-color: #c8c8c0;
+        background: #fbfbf8;
+      }
+
+      .button:active {
+        transform: translateY(1px);
+      }
     </style>
   </head>
   <body>
-    <div class="grain" aria-hidden="true"></div>
     <main class="not-found">
       <div class="not-found-inner">
         <p class="not-found-code">404 · SIGNAL LOST</p>
         <h1 class="not-found-title">这个页面没有信号</h1>
         <p class="not-found-copy">地址可能已经变化。回到 AI Signal Guard 首页重测。</p>
-        <a class="button" href="./">回到首页</a>
+        <a class="button" id="home-link" href="./">回到首页</a>
+        <p class="not-found-copy" style="margin-top: 26px; font-size: 12px; color: #a3a39c">
+          本页使用 Google Analytics 统计访问（发送页面地址、来源、客户端标识与浏览器元数据）。
+        </p>
       </div>
     </main>
+    <script>
+      // 深层路径（如 /AiSignalGuard/a/b）下 "./" 不指向站点根目录。
+      // 按部署环境判断：GitHub Pages 用固定子路径（统一为正确大小写），镜像等其他域名用根路径。
+      (function () {
+        var link = document.getElementById("home-link");
+        link.href = /\.github\.io$/i.test(window.location.hostname) ? "/AiSignalGuard/" : "/";
+      })();
+    </script>
   </body>
 </html>

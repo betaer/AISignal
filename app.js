@@ -2,7 +2,7 @@
   "use strict";
 
   var RING_CIRCUMFERENCE = 326.726;
-  var REPO = "betaer/AISignalGuard";
+  var REPO = "betaer/AiSignalGuard";
   var NAV = [
     ["sec-score", "信任分"],
     ["sec-ip", "出口 IP"],
@@ -70,6 +70,16 @@
     multiIp: "",
     myIp: "",
     exitIps: [],
+    multiIsSelf: true,
+    multiSelf: {
+      started: false,
+      done: false,
+      okCount: 0,
+      geoCount: 0,
+      mismatchCount: 0,
+      summary: ""
+    },
+    webrtcCandidates: null,
     multiSummary: "点「查询」用 8 个数据源交叉核对你的出口 IP，或输入任意 IP。",
     multi: [],
     aipath: [],
@@ -292,6 +302,24 @@
     }
   }
 
+  function replaceRow(id, patch) {
+    // 重测开始或失败时使用：不合并旧字段，避免 isCN / host / flag 等评分字段残留继续扣分。
+    state.rows[id] = Object.assign(
+      {
+        status: "pending",
+        value: "检测中…",
+        detail: "",
+        tag: "",
+        advice: advice[id] || ""
+      },
+      patch
+    );
+    recompute();
+    if (!state.renderPaused) {
+      render();
+    }
+  }
+
   function withBatchedRender(fn, immediate) {
     state.renderPaused = true;
     try {
@@ -354,6 +382,26 @@
     return runId === state.runId;
   }
 
+  var moduleRuns = {
+    ip: 0,
+    webrtc: 0,
+    dns: 0,
+    conn: 0,
+    multi: 0,
+    multiSelf: 0,
+    aipath: 0,
+    aistatus: 0
+  };
+
+  function startModuleRun(name) {
+    moduleRuns[name] += 1;
+    return moduleRuns[name];
+  }
+
+  function isModuleRun(name, token, runId) {
+    return token === moduleRuns[name] && isCurrentRun(runId);
+  }
+
   function staleRunError() {
     var err = new Error("stale run");
     err.stale = true;
@@ -386,12 +434,13 @@
   }
 
   function multiReady() {
-    if (!state.multi.length) {
+    if (state.multiSelf.done) {
+      return true;
+    }
+    if (!state.multiSelf.started) {
       return rowReady("ip") && !state.myIp;
     }
-    return state.multi.every(function (item) {
-      return item.country !== "…" && item.geo !== "查询中";
-    });
+    return false;
   }
 
   function scoreReady() {
@@ -493,6 +542,7 @@
       }, timeoutMs || 8000);
       fetch(url, {
         cache: "no-store",
+        referrerPolicy: "no-referrer",
         signal: controller.signal
       })
         .then(function (response) {
@@ -517,6 +567,7 @@
       }, timeoutMs || 8000);
       fetch(url, {
         cache: "no-store",
+        referrerPolicy: "no-referrer",
         signal: controller.signal
       })
         .then(function (response) {
@@ -531,6 +582,76 @@
           window.clearTimeout(timer);
         });
     });
+  }
+
+  var COUNTRY_NAME_TO_CC = {
+    "CHINA": "CN",
+    "PEOPLE'S REPUBLIC OF CHINA": "CN",
+    "HONG KONG": "HK",
+    "HONGKONG": "HK",
+    "MACAO": "MO",
+    "MACAU": "MO",
+    "TAIWAN": "TW",
+    "UNITED STATES": "US",
+    "UNITED STATES OF AMERICA": "US",
+    "JAPAN": "JP",
+    "SOUTH KOREA": "KR",
+    "KOREA": "KR",
+    "REPUBLIC OF KOREA": "KR",
+    "SINGAPORE": "SG",
+    "UNITED KINGDOM": "GB",
+    "GERMANY": "DE",
+    "FRANCE": "FR",
+    "NETHERLANDS": "NL",
+    "THE NETHERLANDS": "NL",
+    "CANADA": "CA",
+    "AUSTRALIA": "AU",
+    "RUSSIA": "RU",
+    "RUSSIAN FEDERATION": "RU",
+    "INDIA": "IN",
+    "VIETNAM": "VN",
+    "VIET NAM": "VN",
+    "THAILAND": "TH",
+    "MALAYSIA": "MY",
+    "INDONESIA": "ID",
+    "PHILIPPINES": "PH",
+    "BRAZIL": "BR",
+    "TURKEY": "TR",
+    "TÜRKIYE": "TR",
+    "UNITED ARAB EMIRATES": "AE"
+  };
+
+  // ISO 3166-1 alpha-2 已分配代码白名单。XX / ZZ / EU / AP / SU / XK 等占位、
+  // 大区、弃用或用户自定义代码不参与地理互证，否则会凑出假冲突。
+  var ISO_COUNTRY_CODES = (
+    "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ " +
+    "BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ " +
+    "CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ " +
+    "DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR " +
+    "GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY " +
+    "HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP " +
+    "KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY " +
+    "MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ " +
+    "NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA " +
+    "RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ " +
+    "TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ " +
+    "UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW"
+  )
+    .split(" ")
+    .reduce(function (acc, code) {
+      acc[code] = true;
+      return acc;
+    }, {});
+
+  function normalizeCountryCode(value) {
+    var text = String(value || "").trim().toUpperCase();
+    if (text === "UK") {
+      return "GB";
+    }
+    if (ISO_COUNTRY_CODES[text]) {
+      return text;
+    }
+    return COUNTRY_NAME_TO_CC[text] || "";
   }
 
   function normalizeIpPayload(payload, source) {
@@ -593,9 +714,9 @@
     if (payload.asn && typeof payload.asn === "object") {
       org = org || payload.asn.org || payload.asn.descr || "";
     }
-    var normalizedCc = String(cc || "").toUpperCase();
+    var normalizedCc = normalizeCountryCode(cc) || normalizeCountryCode(country);
     var countryText = country || normalizedCc || "";
-    var geoOk = Boolean(normalizedCc || (countryText && countryText !== "未知"));
+    var geoOk = Boolean(normalizedCc);
     return {
       source: source,
       ip: ip,
@@ -651,7 +772,7 @@
 
       var emoji = detectEmoji();
       setRow("emoji", {
-        status: emoji.flag === true ? "amber" : emoji.flag === null ? "pending" : "green",
+        status: emoji.flag === true ? "amber" : emoji.flag === null ? "neutral" : "green",
         value: emoji.value,
         detail:
           "AI Signal Guard 兼容逻辑会先用 😀 确认彩色 Emoji 可用，再看 🇹🇼 是否被渲染为黑白字母或完全不渲染。Windows 不适用，Canvas 被保护时也不误报。\n" +
@@ -980,15 +1101,75 @@
     return ("00000000" + (hash >>> 0).toString(16)).slice(-8);
   }
 
+  function applyIpRow() {
+    var ipResults = state.exitIps;
+    if (!ipResults || !ipResults.length) {
+      return;
+    }
+    var result = ipResults[0];
+    var orgText = [result.org, result.asn].join(" ");
+    var hasGeo = Boolean(result.cc || (result.country && result.country !== "未知"));
+    var cn = isChinaCountry(result.cc);
+    var host = isHostingOrg(orgText);
+    var status = !hasGeo ? "amber" : cn ? "red" : host ? "amber" : "green";
+    var value = formatExitIpHeadline(ipResults, result);
+    var detail =
+      "出口 IP 是平台最先看到的信号。中国大陆 / 港澳口径由上方切换决定；机房、云厂商、VPN 和代理池会被视为中风险。\n出口 IP：\n" +
+      formatExitIpHeadline(ipResults, result);
+    if (ipResults.length > 1) {
+      detail += "\n\n双栈来源明细：\n" + formatExitIpList(ipResults);
+    } else {
+      detail +=
+        "\n地区：" +
+        (result.country || result.cc || "未知") +
+        "\nASN：" +
+        (result.asn || "未知") +
+        "\n组织：" +
+        (result.org || "未知");
+    }
+    setRow("ip", {
+      status: status,
+      value: value,
+      tag: result.source,
+      country: result.cc,
+      isCN: cn,
+      host: host,
+      ip: result.ip,
+      ips: ipResults.map(function (item) {
+        return item.ip;
+      }),
+      org: result.org,
+      detail: detail
+    });
+    recomputeConsistency();
+  }
+
   function runIP() {
     var runId = state.runId;
+    var token = startModuleRun("ip");
     state.myIp = "";
     state.exitIps = [];
-    setRow("ip", {
+    // 出口 IP 可能变化，作废在途和已有的本机互证结果，拿到新 IP 后重新交叉核对。
+    moduleRuns.multiSelf += 1;
+    if (state.multiIsSelf) {
+      // 展示表格当前属于本机互证：同时作废旧运行的展示写入，避免过期结果稍后回写表格；
+      // 任意 IP 查询的展示 token 保留，不受出口 IP 重测影响。
+      moduleRuns.multi += 1;
+    }
+    state.multiSelf = {
+      started: false,
+      done: false,
+      okCount: 0,
+      geoCount: 0,
+      mismatchCount: 0,
+      summary: ""
+    };
+    replaceRow("ip", {
       status: "pending",
       value: "检测中…",
       detail: "正在读取出口 IP 情报…"
     });
+    recomputeConsistency();
     var sources = [
       function () {
         return getJson("https://ipwho.is/", 7000).then(function (payload) {
@@ -1047,20 +1228,23 @@
     var multiStarted = false;
     var lastAppliedKey = "";
 
-    function maybeRunMulti(ip) {
-      if (multiStarted || !ip) {
+    function maybeRunMulti() {
+      if (multiStarted || !state.myIp) {
         return;
       }
       multiStarted = true;
       scheduleIdle(function () {
-        if (isCurrentRun(runId) && !state.multi.length) {
-          runMulti(ip);
+        if (!isModuleRun("ip", token, runId) || state.multiSelf.started || !state.myIp) {
+          return;
         }
+        // 触发时读取当前出口 IP（聚合后可能已与首个结果不同）；
+        // 用户已手动查询任意 IP 时，互证在后台完成，不抢占展示表格。
+        runMulti(state.myIp, { background: !state.multiIsSelf });
       }, 2600);
     }
 
     function applyIpResults(results) {
-      if (!isCurrentRun(runId)) {
+      if (!isModuleRun("ip", token, runId)) {
         return false;
       }
       var ipResults = uniqueIpResults(results);
@@ -1077,44 +1261,26 @@
         return true;
       }
       lastAppliedKey = appliedKey;
+      var previousIp = state.myIp;
       state.myIp = result.ip || "";
       state.exitIps = ipResults;
-      var orgText = [result.org, result.asn].join(" ");
-      var hasGeo = Boolean(result.cc || (result.country && result.country !== "未知"));
-      var cn = isChinaCountry(result.cc);
-      var host = isHostingOrg(orgText);
-      var status = !hasGeo ? "amber" : cn ? "red" : host ? "amber" : "green";
-      var value = formatExitIpHeadline(ipResults, result);
-      var detail =
-        "出口 IP 是平台最先看到的信号。中国大陆 / 港澳口径由上方切换决定；机房、云厂商、VPN 和代理池会被视为中风险。\n出口 IP：\n" +
-        formatExitIpHeadline(ipResults, result);
-      if (ipResults.length > 1) {
-        detail += "\n\n双栈来源明细：\n" + formatExitIpList(ipResults);
+      applyIpRow();
+      reapplyWebrtc();
+      if (previousIp && previousIp !== state.myIp && state.multiSelf.started) {
+        // 聚合后主出口 IP 与首个结果不同：作废基于旧 IP 的互证，立即用新 IP 重跑。
+        moduleRuns.multiSelf += 1;
+        state.multiSelf = {
+          started: false,
+          done: false,
+          okCount: 0,
+          geoCount: 0,
+          mismatchCount: 0,
+          summary: ""
+        };
+        runMulti(state.myIp, { background: !state.multiIsSelf });
       } else {
-        detail +=
-          "\n地区：" +
-          (result.country || result.cc || "未知") +
-          "\nASN：" +
-          (result.asn || "未知") +
-          "\n组织：" +
-          (result.org || "未知");
+        maybeRunMulti();
       }
-      setRow("ip", {
-        status: status,
-        value: value,
-        tag: result.source,
-        country: result.cc,
-        isCN: cn,
-        host: host,
-        ip: result.ip,
-        ips: ipResults.map(function (item) {
-          return item.ip;
-        }),
-        org: result.org,
-        detail: detail
-      });
-      recomputeConsistency();
-      maybeRunMulti(result.ip || "");
       return true;
     }
 
@@ -1129,7 +1295,7 @@
     });
 
     firstResolvedResult(probes).then(function (result) {
-      if (!isCurrentRun(runId)) {
+      if (!isModuleRun("ip", token, runId)) {
         return;
       }
       if (result) {
@@ -1139,7 +1305,7 @@
 
     Promise.all(probes)
       .then(function (results) {
-        if (!isCurrentRun(runId)) {
+        if (!isModuleRun("ip", token, runId)) {
           return;
         }
         var successful = results.filter(function (result) {
@@ -1150,18 +1316,23 @@
         }
       })
       .catch(function () {
-        if (!isCurrentRun(runId)) {
+        if (!isModuleRun("ip", token, runId)) {
           return;
         }
-        state.multiSummary = "出口 IP 未测出，无法自动交叉核对。可手动输入 IP 查询。";
-        state.multi = [];
-        setRow("ip", {
+        if (state.multiIsSelf) {
+          // 用户正在查看任意 IP 查询结果时不清空表格
+          state.multiSummary = "出口 IP 未测出，无法自动交叉核对。可手动输入 IP 查询。";
+          state.multi = [];
+        }
+        replaceRow("ip", {
           status: "amber",
           value: "无法读取出口 IP",
           detail:
-            "浏览器无法读取 IP 情报，可能是接口被网络拦截、跨源限制或当前代理阻断。此项失败不代表安全，只代表未测出。"
+            "浏览器无法读取 IP 情报，可能是接口被网络拦截、跨源限制或当前代理阻断。此项失败不代表安全，只代表未测出（按未测出扣 8 分）。"
         });
         recomputeConsistency();
+        // 出口列表已清空，用已保存的 WebRTC 候选重新核对，避免旧泄漏判定继续扣分
+        reapplyWebrtc();
       });
   }
 
@@ -1340,12 +1511,23 @@
       issues.push("时区指向中国");
     }
     if (!ip.country) {
-      setRow("consistency", {
-        status: "pending",
-        value: "待出口 IP",
-        detail: "正在等待出口 IP 结果，之后会核对 IP、时区和语言是否互相冲突。",
-        advice: ""
-      });
+      if (!state.rows.ip || ip.status === "pending") {
+        setRow("consistency", {
+          status: "pending",
+          value: "待出口 IP",
+          detail: "正在等待出口 IP 结果，之后会核对 IP、时区和语言是否互相冲突。",
+          advice: ""
+        });
+      } else {
+        // 出口 IP 已完成但未取得地区：一致性无从核对，按中性处理，避免评分停在“检测中”。
+        replaceRow("consistency", {
+          status: "neutral",
+          value: "无法核对",
+          flag: false,
+          detail: "出口 IP 未测出地区，无法核对 IP、时区和语言是否互相冲突。此项按中性处理，不参与扣分。",
+          advice: ""
+        });
+      }
       return;
     }
     if (!ip.isCN && issues.length) {
@@ -1380,7 +1562,9 @@
 
   function runWebRTC() {
     var runId = state.runId;
-    setRow("webrtc", {
+    var token = startModuleRun("webrtc");
+    state.webrtcCandidates = null;
+    replaceRow("webrtc", {
       status: "pending",
       value: "检测中…",
       detail: "正在通过 STUN 观察候选地址…"
@@ -1388,7 +1572,7 @@
     var RTCPeerConnection =
       window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
     if (!RTCPeerConnection) {
-      setRow("webrtc", {
+      replaceRow("webrtc", {
         status: "green",
         value: "浏览器不支持 WebRTC",
         detail: "当前浏览器未暴露 RTCPeerConnection，无法通过 WebRTC STUN 读取候选地址。"
@@ -1418,7 +1602,7 @@
         })
         .catch(function () {});
     } catch (err) {
-      setRow("webrtc", {
+      replaceRow("webrtc", {
         status: "amber",
         value: "检测失败",
         detail: "WebRTC 初始化失败：" + err.message
@@ -1427,15 +1611,26 @@
     }
 
     window.setTimeout(function () {
-      if (!isCurrentRun(runId)) {
-        try {
-          pc.close();
-        } catch (err) {}
-        return;
-      }
       try {
         pc.close();
       } catch (err) {}
+      if (!isModuleRun("webrtc", token, runId)) {
+        return;
+      }
+      state.webrtcCandidates = found.slice();
+      applyWebrtcVerdict();
+    }, 4200);
+  }
+
+  function reapplyWebrtc() {
+    if (state.webrtcCandidates) {
+      applyWebrtcVerdict();
+    }
+  }
+
+  function applyWebrtcVerdict() {
+    var found = state.webrtcCandidates || [];
+    {
       var publicIps = found.filter(function (ip) {
         return isPublicNetworkAddress(ip);
       });
@@ -1507,7 +1702,7 @@
             "没有从 WebRTC 候选信息中读取到 IP。现代浏览器可能使用 mDNS 隐藏内网地址，或当前网络阻断了 STUN。"
         });
       }
-    }, 4200);
+    }
   }
 
   function extractIceAddress(candidate) {
@@ -1551,6 +1746,7 @@
       return;
     }
     var runId = state.runId;
+    var token = startModuleRun("dns");
     var deep = mode === "deep";
     state.dns = {
       done: false,
@@ -1558,14 +1754,14 @@
       mode: mode,
       servers: []
     };
-    setRow("dns", {
+    replaceRow("dns", {
       status: "pending",
       value: "检测中…",
       detail: "正在通过 bash.ws 分配的子域名触发 DNS 查询，约 10 到 20 秒。"
     });
     getText("https://bash.ws/id", 8000)
       .then(function (id) {
-        if (!isCurrentRun(runId)) {
+        if (!isModuleRun("dns", token, runId)) {
           throw staleRunError();
         }
         id = String(id || "").trim();
@@ -1586,12 +1782,39 @@
           });
       })
       .then(function (data) {
-        if (!isCurrentRun(runId)) {
+        if (!isModuleRun("dns", token, runId)) {
           return;
         }
-        if (!Array.isArray(data)) {
-          throw new Error("bad result");
+        applyDnsData(data, mode);
+      })
+      .catch(function (err) {
+        if ((err && err.stale) || !isModuleRun("dns", token, runId)) {
+          return;
         }
+        state.dns = {
+          done: true,
+          running: false,
+          mode: mode,
+          error: true,
+          servers: [],
+          summary:
+            "检测失败：" +
+            String((err && err.message) || err) +
+            "。这通常是 bash.ws 被墙、限流、跨源失败或代理未放行其子域名。检测失败不代表安全，只代表本项未测出。"
+        };
+        setRow("dns", {
+          status: "amber",
+          value: "检测失败",
+          detail: state.dns.summary
+        });
+      });
+  }
+
+  function applyDnsData(data, mode) {
+    if (!Array.isArray(data)) {
+      throw new Error("bad result");
+    }
+    {
         var yourIp = data.find(function (item) {
           return item.type === "ip";
         });
@@ -1632,6 +1855,7 @@
           done: true,
           running: false,
           mode: mode,
+          raw: data,
           status: status,
           summary: summary,
           yourIp: yourIp
@@ -1651,28 +1875,7 @@
             "真正的 DNS 泄漏检测需要权威 DNS 服务器配合。这里借助 bash.ws 完成，第三方会看到本次解析请求。\n" +
             summary
         });
-      })
-      .catch(function (err) {
-        if ((err && err.stale) || !isCurrentRun(runId)) {
-          return;
-        }
-        state.dns = {
-          done: true,
-          running: false,
-          mode: mode,
-          error: true,
-          servers: [],
-          summary:
-            "检测失败：" +
-            String((err && err.message) || err) +
-            "。这通常是 bash.ws 被墙、限流、跨源失败或代理未放行其子域名。检测失败不代表安全，只代表本项未测出。"
-        };
-        setRow("dns", {
-          status: "amber",
-          value: "检测失败",
-          detail: state.dns.summary
-        });
-      });
+    }
   }
 
   function dnsIsChina(item) {
@@ -1718,6 +1921,7 @@
 
   function runConn() {
     var runId = state.runId;
+    var token = startModuleRun("conn");
     state.conn = {
       running: true,
       groups: connTargets.map(function (group) {
@@ -1737,7 +1941,10 @@
     connTargets.forEach(function (group) {
       group.sites.forEach(function (site) {
         probeHost(site).then(function (result) {
-          updateConnHost(site.host, result.code, result.status, runId);
+          if (!isModuleRun("conn", token, runId)) {
+            return;
+          }
+          updateConnHost(site.host, result.code, result.status);
         });
       });
     });
@@ -1746,20 +1953,15 @@
   function probeHost(site) {
     return new Promise(function (resolve) {
       var done = false;
+      var fallbackStarted = false;
       var startedAt = performance.now();
       var controller = new AbortController();
       var timer = window.setTimeout(function () {
         controller.abort();
-        finish(false, false);
+        finish(false);
       }, 6500);
-      function finish(ok, exhausted) {
+      function settle(ok) {
         if (done) {
-          return;
-        }
-        if (!ok && !exhausted && site.fallbackUrl) {
-          probeFetch(site.fallbackUrl, "no-cors", controller.signal).then(function (fallbackOk) {
-            finish(fallbackOk, true);
-          });
           return;
         }
         done = true;
@@ -1776,10 +1978,35 @@
           status: site.failStatus || "不可达"
         });
       }
-      probeFetch(site.probeUrl || "https://" + site.host + "/favicon.ico", site.mode || "no-cors", controller.signal).then(
-        function (ok) {
-          finish(ok, false);
+      function finish(ok) {
+        if (done) {
+          return;
         }
+        if (ok) {
+          settle(true);
+          return;
+        }
+        if (!fallbackStarted && site.fallbackUrl) {
+          // 主探测失败（含超时中止）后改用 fallback。必须用新的 controller 和独立超时：
+          // 复用已 abort 的 signal 会让 fallback 立即失败。
+          fallbackStarted = true;
+          var fallbackController = new AbortController();
+          var fallbackTimer = window.setTimeout(function () {
+            fallbackController.abort();
+          }, 4000);
+          probeFetch(site.fallbackUrl, "no-cors", fallbackController.signal).then(function (fallbackOk) {
+            window.clearTimeout(fallbackTimer);
+            settle(fallbackOk);
+          });
+          return;
+        }
+        if (!fallbackStarted) {
+          settle(false);
+        }
+        // fallback 已在途：主请求被 abort 后的迟到失败回调在此忽略，等 fallback 结算。
+      }
+      probeFetch(site.probeUrl || "https://" + site.host + "/favicon.ico", site.mode || "no-cors", controller.signal).then(
+        finish
       );
     });
   }
@@ -1803,10 +2030,7 @@
     return url + (url.indexOf("?") === -1 ? "?" : "&") + "_=" + Date.now();
   }
 
-  function updateConnHost(host, code, label, runId) {
-    if (runId && !isCurrentRun(runId)) {
-      return;
-    }
+  function updateConnHost(host, code, label) {
     state.conn.groups.forEach(function (group) {
       group.sites.forEach(function (site) {
         if (site.host === host) {
@@ -1899,30 +2123,52 @@
     };
   }
 
-  function runMulti(ip) {
+  var MULTI_SOURCES = [
+    "db-ip.com",
+    "ipwho.is",
+    "ip.sb",
+    "geojs.io",
+    "ipapi.is",
+    "ipinfo.io",
+    "country.is",
+    "iplocation.net"
+  ];
+
+  function runMulti(ip, options) {
     var runId = state.runId;
+    var background = Boolean(options && options.background);
     var target = String(ip || state.multiIp || state.myIp || "").trim();
-    state.multiSummary = "正在从多个数据源交叉查询…";
-    state.multi = [
-      "db-ip.com",
-      "ipwho.is",
-      "ip.sb",
-      "geojs.io",
-      "ipapi.is",
-      "ipinfo.io",
-      "country.is",
-      "iplocation.net"
-    ].map(function (source) {
-      return {
-        source: source,
-        country: "…",
-        geo: "查询中",
-        asn: "—",
-        org: "—",
-        ok: false
+    var isSelf = !target || target === state.myIp;
+    var displayToken = background ? 0 : startModuleRun("multi");
+    var selfToken = 0;
+    if (isSelf) {
+      selfToken = startModuleRun("multiSelf");
+      state.multiSelf = {
+        started: true,
+        done: false,
+        okCount: 0,
+        geoCount: 0,
+        mismatchCount: 0,
+        summary: "本机多源互证进行中…"
       };
-    });
-    render();
+    }
+    if (!background) {
+      state.multiIsSelf = isSelf;
+      state.multiSummary = isSelf
+        ? "正在从多个数据源交叉查询…"
+        : "正在查询指定 IP，结果仅供参考，不参与综合信任分…";
+      state.multi = MULTI_SOURCES.map(function (source) {
+        return {
+          source: source,
+          country: "…",
+          geo: "查询中",
+          asn: "—",
+          org: "—",
+          ok: false
+        };
+      });
+      render();
+    }
 
     var tasks = [
       {
@@ -1974,117 +2220,162 @@
       }
     ];
 
+    var selfResults = [];
+    var selfSettled = 0;
+
+    function canWriteDisplay() {
+      return !background && displayToken === moduleRuns.multi && isCurrentRun(runId);
+    }
+
+    function noteSelfResult(result) {
+      if (!isSelf || selfToken !== moduleRuns.multiSelf || !isCurrentRun(runId)) {
+        return;
+      }
+      selfSettled += 1;
+      if (result && result.ok) {
+        selfResults.push(result);
+      }
+      if (selfSettled === tasks.length) {
+        var analysis = analyzeMultiResults(selfResults);
+        state.multiSelf = {
+          started: true,
+          done: true,
+          okCount: analysis.okCount,
+          geoCount: analysis.geoCount,
+          mismatchCount: analysis.mismatchCount,
+          summary: analysis.summary
+        };
+        recompute();
+        render();
+      }
+    }
+
     tasks.forEach(function (task, index) {
       if (task.unsupported) {
-        state.multi[index] = {
-          source: task.source,
-          country: "不支持指定 IP",
-          geo: "仅支持当前出口",
-          asn: "—",
-          org: "—",
-          ok: false,
-          geoOk: false
-        };
-        summarizeMulti();
-        render();
+        if (canWriteDisplay()) {
+          state.multi[index] = {
+            source: task.source,
+            country: "不支持指定 IP",
+            geo: "仅支持当前出口",
+            asn: "—",
+            org: "—",
+            ok: false,
+            geoOk: false
+          };
+          summarizeMulti();
+          render();
+        }
+        noteSelfResult(null);
         return;
       }
       getJson(task.url, 8500)
         .then(function (payload) {
-          if (!isCurrentRun(runId)) {
-            throw staleRunError();
-          }
           return normalizeIpPayload(payload, task.source);
         })
         .then(function (result) {
-          if (!isCurrentRun(runId)) {
-            return;
+          if (canWriteDisplay()) {
+            state.multi[index] = result || {
+              source: task.source,
+              country: "无结果",
+              geo: "—",
+              asn: "—",
+              org: "—",
+              ok: false
+            };
+            summarizeMulti();
+            render();
           }
-          state.multi[index] = result || {
-            source: task.source,
-            country: "无结果",
-            geo: "—",
-            asn: "—",
-            org: "—",
-            ok: false
-          };
-          summarizeMulti();
-          render();
+          noteSelfResult(result);
         })
         .catch(function () {
-          if (!isCurrentRun(runId)) {
-            return;
+          if (canWriteDisplay()) {
+            state.multi[index] = {
+              source: task.source,
+              country: "无法读取",
+              geo: "跨源 / 限流",
+              asn: "—",
+              org: "—",
+              ok: false
+            };
+            summarizeMulti();
+            render();
           }
-          state.multi[index] = {
-            source: task.source,
-            country: "无法读取",
-            geo: "跨源 / 限流",
-            asn: "—",
-            org: "—",
-            ok: false
-          };
-          summarizeMulti();
-          render();
+          noteSelfResult(null);
         });
     });
   }
 
-  function summarizeMulti() {
-    var ok = state.multi.filter(function (item) {
-      return item.ok;
+  function analyzeMultiResults(results) {
+    var ok = (results || []).filter(function (item) {
+      return item && item.ok;
     });
-    if (!ok.length) {
-      state.multiSummary = "暂未拿到可用结果，可能是接口限流或跨源限制。";
-      recompute();
-      return;
-    }
     var geoOk = ok.filter(function (item) {
-      return item.geoOk;
+      return item.geoOk && item.cc;
     });
-    if (!geoOk.length) {
-      state.multi = state.multi.map(function (item) {
-        return Object.assign({}, item, {
-          mismatch: false
-        });
-      });
-      state.multiSummary =
-        ok.length +
-        " 个数据源返回结果，但都没有给出可用于地理交叉的地区字段；ASN / 组织信息仅作参考。";
-      recompute();
-      return;
-    }
-    var countries = {};
+    var counts = {};
     geoOk.forEach(function (item) {
-      var key = item.cc || item.country || "未知";
-      countries[key] = (countries[key] || 0) + 1;
+      counts[item.cc] = (counts[item.cc] || 0) + 1;
     });
-    var sorted = Object.keys(countries).sort(function (a, b) {
-      return countries[b] - countries[a];
-    });
-    var main = sorted[0];
+    var main =
+      Object.keys(counts).sort(function (a, b) {
+        return counts[b] - counts[a];
+      })[0] || "";
+    var mismatchCount = main
+      ? geoOk.filter(function (item) {
+          return item.cc !== main;
+        }).length
+      : 0;
+    var summary;
+    if (!ok.length) {
+      summary = "暂未拿到可用结果，可能是接口限流或跨源限制。";
+    } else if (geoOk.length < 3) {
+      summary =
+        ok.length +
+        " 个数据源返回结果，但可交叉的地理来源只有 " +
+        geoOk.length +
+        " 个（至少需 3 个），按证据不足处理，不参与扣分。";
+    } else {
+      summary =
+        ok.length +
+        " 个数据源返回结果，其中 " +
+        geoOk.length +
+        " 个可用于地理交叉；主流判定为 " +
+        main +
+        (mismatchCount
+          ? "，" +
+            mismatchCount +
+            " 个来源与主流结果不一致" +
+            (mismatchCount >= 2 ? "。" : "（单一分歧，不扣分）。")
+          : "，未发现明显地理冲突。");
+    }
+    return {
+      okCount: ok.length,
+      geoCount: geoOk.length,
+      mismatchCount: mismatchCount,
+      main: main,
+      summary: summary
+    };
+  }
+
+  function summarizeMulti() {
+    var analysis = analyzeMultiResults(state.multi);
     state.multi = state.multi.map(function (item) {
-      if (!item.ok || !item.geoOk) {
-        return item;
+      if (!item.ok || !item.geoOk || !item.cc) {
+        return Object.assign({}, item, { mismatch: false });
       }
       return Object.assign({}, item, {
-        mismatch: (item.cc || item.country || "未知") !== main
+        mismatch: analysis.geoCount >= 3 && Boolean(analysis.main) && item.cc !== analysis.main
       });
     });
-    var mismatch = state.multi.filter(function (item) {
-      return item.mismatch;
-    }).length;
     state.multiSummary =
-      ok.length +
-      " 个数据源返回结果，其中 " +
-      geoOk.length +
-      " 个可用于地理交叉；主流判定为 " +
-      main +
-      (mismatch ? "，其中 " + mismatch + " 个来源与主流结果不一致。" : "，未发现明显地理冲突。");
+      analysis.summary +
+      (state.multiIsSelf ? "" : "（任意 IP 查询，仅供参考，不参与综合信任分。）");
     recompute();
   }
 
   function runAipath() {
     var runId = state.runId;
+    var token = startModuleRun("aipath");
     state.aipath = aiTargets.map(function (target) {
       return {
         name: target.name,
@@ -2105,7 +2396,7 @@
           });
       });
       Promise.all(probes).then(function (traces) {
-          if (!isCurrentRun(runId)) {
+          if (!isModuleRun("aipath", token, runId)) {
             return;
           }
           traces = traces.filter(function (trace) {
@@ -2167,6 +2458,7 @@
 
   function runAiStatus() {
     var runId = state.runId;
+    var token = startModuleRun("aistatus");
     state.aistatus = statusTargets.map(function (target) {
       return {
         name: target.name,
@@ -2186,7 +2478,7 @@
     statusTargets.forEach(function (target, index) {
       getJson(target.url, 8000)
         .then(function (json) {
-          if (!isCurrentRun(runId)) {
+          if (!isModuleRun("aistatus", token, runId)) {
             return;
           }
           var indicator = json.status && json.status.indicator;
@@ -2200,7 +2492,7 @@
           render();
         })
         .catch(function () {
-          if (!isCurrentRun(runId)) {
+          if (!isModuleRun("aistatus", token, runId)) {
             return;
           }
           state.aistatus[index] = {
@@ -2227,9 +2519,8 @@
     var aipCN = state.aipath.some(function (item) {
       return item.status === "red";
     });
-    var multiMismatch = state.multi.some(function (item) {
-      return item.mismatch;
-    });
+    var multiMismatch =
+      state.multiSelf.done && state.multiSelf.geoCount >= 3 && state.multiSelf.mismatchCount >= 2;
 
     if (ip.isCN) {
       score -= 35;
@@ -2285,6 +2576,9 @@
     if (!row || row.status === "pending") {
       return "检测中";
     }
+    if (row.status === "neutral") {
+      return "无法核对";
+    }
     if (row.flag) {
       return "信号矛盾";
     }
@@ -2327,11 +2621,10 @@
     })
       ? 15
       : 0;
-    var multiMismatch = state.multi.some(function (item) {
-      return item.mismatch;
-    });
-    var multiPenalty = multiMismatch ? 4 : 0;
-    var multiUnavailable = !state.multi.length && rowReady("ip") && !state.myIp;
+    var multiSelf = state.multiSelf;
+    var multiPenalty =
+      multiSelf.done && multiSelf.geoCount >= 3 && multiSelf.mismatchCount >= 2 ? 4 : 0;
+    var multiUnavailable = !multiSelf.started && rowReady("ip") && !state.myIp;
     var aiPending =
       !state.aipath.length ||
       state.aipath.some(function (item) {
@@ -2357,7 +2650,9 @@
         max: 18,
         penalty: identityPenalty,
         status:
-          !hasRows || [lang, tz, emoji, font].some(function (row) {
+          !hasRows ||
+          consistency.status === "pending" ||
+          [lang, tz, emoji, font].some(function (row) {
             return row.status === "pending";
           })
             ? "pending"
@@ -2365,7 +2660,9 @@
               ? "red"
               : identityPenalty
                 ? "amber"
-                : "green",
+                : consistency.status === "neutral"
+                  ? "neutral"
+                  : "green",
         detail: identityScoreDetail(lang, tz, consistency)
       },
       {
@@ -2406,8 +2703,20 @@
         name: "多源交叉",
         max: 4,
         penalty: multiPenalty,
-        status: !state.multi.length ? (multiUnavailable ? "amber" : "pending") : multiPenalty ? "amber" : "green",
-        detail: state.multiSummary
+        status: !multiSelf.done
+          ? multiUnavailable
+            ? "neutral"
+            : "pending"
+          : multiSelf.geoCount < 3
+            ? "neutral"
+            : multiSelf.mismatchCount
+              ? "amber"
+              : "green",
+        detail: multiSelf.done
+          ? multiSelf.summary
+          : multiUnavailable
+            ? "出口 IP 未测出，本机互证不可用；不参与扣分。"
+            : "本机多源互证进行中…"
       }
     ];
   }
@@ -2421,6 +2730,9 @@
     }
     if (segment.status === "green") {
       return "正常";
+    }
+    if (segment.status === "neutral") {
+      return "证据不足 · 不扣分";
     }
     return "检测中";
   }
@@ -2583,9 +2895,9 @@
       items.push({ label: "AI 路径出口在中国", section: "sec-aipath", row: "", severity: "red" });
     }
     if (
-      state.multi.some(function (item) {
-        return item.mismatch;
-      })
+      state.multiSelf.done &&
+      state.multiSelf.geoCount >= 3 &&
+      state.multiSelf.mismatchCount >= 2
     ) {
       items.push({ label: "多源 IP 情报冲突", section: "sec-multi", row: "", severity: "amber" });
     }
@@ -2665,6 +2977,9 @@
   }
 
   function shareStatusLabel(status) {
+    if (status === "neutral") {
+      return "中性";
+    }
     return statusText[statusClass(status)] || "检测中";
   }
 
@@ -2761,8 +3076,8 @@
       "网络连通：" + networkShareStatus(),
       "AI 路径：" + aiPathShareStatus(),
       "",
-      "在线检测：https://betaer.github.io/AISignalGuard/",
-      "开源仓库：https://github.com/betaer/AISignalGuard"
+      "在线检测：https://betaer.github.io/AiSignalGuard/",
+      "开源仓库：https://github.com/betaer/AiSignalGuard"
     ].join("\n");
   }
 
@@ -2793,12 +3108,26 @@
 
   function renderNow() {
     state.renderScheduled = false;
+    var active = document.activeElement;
+    var restoreMultiIp =
+      active && active.id === "multi-ip"
+        ? { start: active.selectionStart, end: active.selectionEnd }
+        : null;
     document.body.classList.toggle("privacy-on", state.privacy);
     renderTopbar();
     renderScore();
     renderSections();
     bindScoreMetricEvents();
     bindDynamicEvents();
+    if (restoreMultiIp) {
+      var input = $("#multi-ip");
+      if (input) {
+        input.focus();
+        try {
+          input.setSelectionRange(restoreMultiIp.start, restoreMultiIp.end);
+        } catch (err) {}
+      }
+    }
   }
 
   function renderTopbar() {
@@ -3128,16 +3457,7 @@
   function renderMultiSection() {
     var rows = state.multi.length
       ? state.multi
-      : [
-          "db-ip.com",
-          "ipwho.is",
-          "ip.sb",
-          "geojs.io",
-          "ipapi.is",
-          "ipinfo.io",
-          "country.is",
-          "iplocation.net"
-        ].map(function (source) {
+      : MULTI_SOURCES.map(function (source) {
           return {
             source: source,
             country: "…",
@@ -3388,8 +3708,11 @@
     });
     document.querySelectorAll("[data-region]").forEach(function (button) {
       button.addEventListener("click", function () {
+        if (state.region === button.dataset.region) {
+          return;
+        }
         state.region = button.dataset.region;
-        runAll();
+        reapplyRegion();
       });
     });
     document.querySelectorAll("[data-panel]").forEach(function (button) {
@@ -3620,11 +3943,45 @@
       });
   }
 
+  function reapplyRegion() {
+    // 口径只影响分类判定，本地重算即可，不重发任何网络请求。
+    runLocalSignals(true);
+    if (state.exitIps.length) {
+      applyIpRow();
+    } else {
+      recomputeConsistency();
+    }
+    if (state.dns.raw) {
+      applyDnsData(state.dns.raw, state.dns.mode);
+    }
+    state.aipath = state.aipath.map(function (item) {
+      if (!item.locs || item.status === "pending") {
+        return item;
+      }
+      var cn = item.locs.some(isChinaCountry);
+      return Object.assign({}, item, {
+        status: cn ? "red" : item.ips && item.ips.length ? "green" : "amber"
+      });
+    });
+    recompute();
+    renderImmediate();
+  }
+
   function runAll() {
     state.runId += 1;
     var runId = state.runId;
     setPendingRows();
     state.multi = [];
+    state.multiIsSelf = true;
+    state.multiSelf = {
+      started: false,
+      done: false,
+      okCount: 0,
+      geoCount: 0,
+      mismatchCount: 0,
+      summary: ""
+    };
+    state.webrtcCandidates = null;
     state.multiSummary = "等待出口 IP 后自动交叉核对…";
     state.conn = {
       running: true,

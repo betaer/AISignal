@@ -5,12 +5,11 @@ const STATIC_FILES = [
   "404.html",
   "app.min.js",
   "favicon.svg",
-  "styles.css",
   "assets",
 ];
 
 const LEGACY_SUMMARY_URL =
-  /"在线检测：https:\/\/betaer\.github\.io\/AISignalGuard\/"/g;
+  /"在线检测：https:\/\/betaer\.github\.io\/AiSignalGuard\/"/g;
 const RUNTIME_SUMMARY_URL =
   '"在线检测：" + new URL(".", window.location.href).href';
 
