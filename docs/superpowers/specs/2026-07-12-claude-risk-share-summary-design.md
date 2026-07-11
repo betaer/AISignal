@@ -17,6 +17,8 @@
 5. 展示 AI 路径是否命中中国出口。
 6. 仅保留在线检测链接。
 
+摘要提供中英文两套等价文案，并根据检测到的环境信号自动选择语言。
+
 示例：
 
 ```text
@@ -30,11 +32,45 @@ AI 路径：未见中国出口
 立即检测：https://betaer.github.io/AiSignalGuard/
 ```
 
+英文示例：
+
+```text
+Claude Account Risk Check
+
+Trust score: 92/100 (Trusted)
+Risks: No obvious risk signals
+Network: No direct mainland China connection detected
+AI routes: No China egress detected
+
+Check yours: https://betaer.github.io/AiSignalGuard/
+```
+
+## 摘要语言选择
+
+以下任一实际检测信号存在时复制中文摘要：
+
+- 浏览器首选语言或语言列表包含中文。
+- 出口 IP 位于中国大陆、香港或澳门。
+- 浏览器时区属于中国大陆、香港或澳门。
+- DNS 解析器命中中国大陆、香港或澳门。
+- 网络连通探针命中中国大陆直连。
+- AI 路径出口命中中国大陆、香港或澳门。
+
+上述信号均不存在时复制英文摘要。页面的“判定口径”选项仅是用户选择的评分范围，不作为摘要语言依据；台湾相关信号也不触发中文摘要。
+
+如果相关检测仍在进行，只使用当时已经确认的信号选择语言，不把未知状态推断成中国信号。
+
 ## 动态标题
 
 - 检测结果包含高危信号：`⚠️ Claude 封号风险检测`
 - 检测完成且没有高危信号：`Claude 封号风险检测`
 - 检测尚未完成：`Claude 使用环境检测中`
+
+英文标题对应为：
+
+- 检测结果包含高危信号：`⚠️ Claude Account Risk Check`
+- 检测完成且没有高危信号：`Claude Account Risk Check`
+- 检测尚未完成：`Checking Your Claude Environment`
 
 标题描述的是环境风险检测，不使用“Claude 封号检测结果”等可能暗示能够确定封号结果的表述。
 
@@ -61,6 +97,7 @@ AI 路径：未见中国出口
 ## 验证要求
 
 - 添加自动化测试，覆盖有风险、无风险和检测中三类摘要。
+- 添加自动化测试，覆盖中文信号触发中文、香港或澳门信号触发中文，以及无中国/中文信号时生成英文。
 - 验证摘要不包含“开源仓库”、判定口径、WebRTC 和 DNS 的独立行。
 - 验证 WebRTC、DNS 等异常仍会出现在风险摘要中。
 - 验证生成文本符合 280 字符预算。
