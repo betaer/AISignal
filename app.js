@@ -961,10 +961,6 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     var typeText = types.join(" ");
     var combined = types.concat(organizations).join(" · ");
     var residential = /residential|consumer|fixed(?:\s|-)?line|broadband/i.test(typeText);
-    var explicitDatacenter = /hosting|data.?center|cloud|server|colo|vps/i.test(typeText);
-    var heuristicDatacenter = state.exitIps.some(function (item) {
-      return Boolean(item.hostEvidence);
-    });
     return {
       types: types,
       organizations: organizations,
@@ -973,7 +969,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       isp: /\bisp\b|telecom|broadband|cable|fiber|mobile|cellular/i.test(typeText),
       enterprise: /enterprise|business|corporate|managed/i.test(combined),
       vpn: /\bvpn\b|proxy/i.test(combined),
-      datacenter: explicitDatacenter || (!residential && heuristicDatacenter)
+      datacenter: state.exitIps.some(isHostingIpResult)
     };
   }
 
@@ -1382,12 +1378,14 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     );
   }
 
-  function hasResidentialNetworkType(value) {
-    return /residential|consumer|fixed(?:\s|-)?line|broadband/i.test(value || "");
-  }
-
   function hasHostingNetworkType(value) {
     return /hosting|data.?center|\bcloud\b|server|colo|vps|\bvpn\b|proxy/i.test(value || "");
+  }
+
+  function hasNonHostingNetworkType(value) {
+    return /residential|consumer|fixed(?:\s|-)?line|broadband|mobile|cellular|\bisp\b|telecom|cable|fiber|carrier/i.test(
+      value || ""
+    );
   }
 
   function isHostingIpResult(item) {
@@ -1395,7 +1393,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     if (hasHostingNetworkType(type)) {
       return true;
     }
-    if (hasResidentialNetworkType(type)) {
+    if (hasNonHostingNetworkType(type)) {
       return false;
     }
     return Boolean(item && item.hostEvidence) || isHostingOrg([item && item.org, item && item.asn, type].join(" "));
@@ -2574,10 +2572,10 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     );
     var mergedType = types.join(" / ") || best.type || "—";
     var explicitHostingType = hasHostingNetworkType(mergedType);
-    var explicitResidentialType = hasResidentialNetworkType(mergedType);
+    var explicitNonHostingType = hasNonHostingNetworkType(mergedType);
     var hostEvidence =
       explicitHostingType ||
-      (!explicitResidentialType &&
+      (!explicitNonHostingType &&
         evidence.some(function (item) {
           return isHostingOrg([item.org, item.asn, item.type].join(" "));
         }));

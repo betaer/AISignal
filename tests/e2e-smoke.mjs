@@ -602,6 +602,74 @@ const scenarios = [
     },
   },
   {
+    name: "网络类型：显式移动运营商标签优先于组织名称中的 Cloud 启发式",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        ipOverrides: {
+          org: "Example Mobile Cloud",
+          aso: "Example Mobile Cloud",
+          type: "mobile",
+        },
+      });
+      await page.goto(base.href);
+      await page.locator('input[value="us_consumer"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page);
+      const ipCardType = await page.locator('#ip-snapshot-card [data-ip-card-field="network-type"]').innerText();
+      const ipNode = (await scoreNodeSnapshot(page)).find((node) => node.id === "ip");
+      const insights = await page.locator("#score-insights").innerText();
+      const networkCard = page.locator(".identity-signal-card").filter({ hasText: "网络类型" });
+      const networkText = await networkCard.innerText();
+      ok("IP snapshot card keeps the explicit mobile type", ipCardType.trim() === "移动运营商", ipCardType);
+      ok(
+        "legacy score does not turn an explicit mobile network into hosting risk",
+        ipNode?.status === "green" && !insights.includes("机房 / VPN 出口"),
+        `${JSON.stringify(ipNode)}; ${insights.replace(/\s+/g, " ").slice(0, 120)}`,
+      );
+      ok(
+        "identity analysis does not turn an explicit mobile network into datacenter evidence",
+        (await networkCard.getAttribute("data-status")) !== "mismatch" && !networkText.includes("检测到机房"),
+        networkText,
+      );
+      await page.close();
+    },
+  },
+  {
+    name: "网络类型：协议占位类型不得掩盖组织名称中的机房证据",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        ipOverrides: {
+          org: "Example Hosting Cloud",
+          aso: "Example Hosting Cloud",
+          type: "IPv4",
+        },
+      });
+      await page.goto(base.href);
+      await page.locator('input[value="us_consumer"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page);
+      const ipNode = (await scoreNodeSnapshot(page)).find((node) => node.id === "ip");
+      const insights = await page.locator("#score-insights").innerText();
+      const networkCard = page.locator(".identity-signal-card").filter({ hasText: "网络类型" });
+      const networkText = await networkCard.innerText();
+      ok(
+        "protocol-only type keeps the organization hosting risk",
+        ipNode?.status === "amber" && insights.includes("机房 / VPN 出口"),
+        `${JSON.stringify(ipNode)}; ${insights.replace(/\s+/g, " ").slice(0, 120)}`,
+      );
+      ok(
+        "identity analysis keeps hosting evidence when the type is only a protocol label",
+        (await networkCard.getAttribute("data-status")) === "mismatch" && networkText.includes("检测到机房"),
+        networkText,
+      );
+      await page.close();
+    },
+  },
+  {
     name: "重新选择画像：完整清理旧结果并重新运行全部检测",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
