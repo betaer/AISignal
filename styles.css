@@ -1605,6 +1605,72 @@ input:focus-visible {
   white-space: pre-wrap;
 }
 
+.fingerprint-help {
+  position: relative;
+  display: inline-flex;
+  margin-left: 6px;
+  vertical-align: -2px;
+  color: var(--muted-2);
+  font-family: var(--sans);
+  letter-spacing: 0;
+  z-index: 3;
+}
+
+.fingerprint-help summary {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  cursor: help;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: inherit;
+  font: 700 10px/1 var(--sans);
+  list-style: none;
+  outline-offset: 3px;
+}
+
+.fingerprint-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.fingerprint-help summary:hover,
+.fingerprint-help[open] summary,
+.fingerprint-help summary:focus-visible {
+  border-color: var(--ink-2);
+  color: var(--ink-2);
+}
+
+.fingerprint-help-bubble {
+  position: absolute;
+  top: 25px;
+  left: -8px;
+  width: min(360px, calc(100vw - 48px));
+  padding: 12px 14px;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  background: #fffefa;
+  box-shadow: 0 12px 30px rgb(35 35 30 / 14%);
+  color: var(--ink-2);
+  font: 10px/1.7 var(--sans);
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: normal;
+}
+
+.fingerprint-help-bubble::before {
+  position: absolute;
+  top: -5px;
+  left: 12px;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid #deded8;
+  border-left: 1px solid #deded8;
+  background: #fffefa;
+  content: "";
+  transform: rotate(45deg);
+}
+
 .fingerprint-cell.is-wide .fingerprint-value {
   font-size: 11px;
   line-height: 1.55;
