@@ -11,6 +11,9 @@ const checkOnly = process.argv.includes("--check");
 
 const result = await build({
   entryPoints: [resolve(root, "app.js")],
+  bundle: true,
+  platform: "browser",
+  format: "iife",
   minify: true,
   charset: "utf8",
   write: false,

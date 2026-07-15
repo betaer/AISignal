@@ -3,37 +3,37 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AI Signal Guard · browser analyzer</title>
-    <meta name="description" content="AI Signal Guard 是一个浏览器端 AI 账号网络与身份信号体检工具。Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.">
-    <meta name="keywords" content="AI Signal Guard, browser signal analyzer, IP 检测, DNS 泄漏, WebRTC, AI 路径, 浏览器指纹">
+    <title>AI Signal Guard · 数字身份匹配分析</title>
+    <meta name="description" content="AI Signal Guard 从网络位置、ISP、DNS、WebRTC、浏览器和服务访问路径等环境信号，分析互联网如何识别你的数字环境，并与目标数字身份画像进行匹配。">
+    <meta name="keywords" content="AI Signal Guard, 数字身份匹配, 数字画像, 环境信号, DNS, WebRTC, AI 服务路径, 浏览器环境">
     <meta name="theme-color" content="#f7f7f5">
-    <meta property="og:title" content="AI Signal Guard">
-    <meta property="og:description" content="Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.">
+    <meta property="og:title" content="AI Signal Guard · 数字身份匹配分析">
+    <meta property="og:description" content="从网络、位置、浏览器与服务路径等环境信号，分析互联网如何识别你的数字环境。">
     <meta property="og:type" content="website">
     <link rel="canonical" href="https://betaer.github.io/AiSignalGuard/">
     <meta property="og:url" content="https://betaer.github.io/AiSignalGuard/">
     <meta property="og:image" content="https://betaer.github.io/AiSignalGuard/assets/og.png">
     <meta property="og:image:type" content="image/png">
-    <meta property="og:image:alt" content="AI Signal Guard 浏览器端 AI 网络与身份信号体检">
+    <meta property="og:image:alt" content="AI Signal Guard 数字身份匹配分析">
     <meta property="og:image:width" content="1280">
     <meta property="og:image:height" content="640">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="AI Signal Guard">
-    <meta name="twitter:description" content="Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.">
+    <meta name="twitter:title" content="AI Signal Guard · 数字身份匹配分析">
+    <meta name="twitter:description" content="从网络、位置、浏览器与服务路径等环境信号，分析互联网如何识别你的数字环境。">
     <meta name="twitter:image" content="https://betaer.github.io/AiSignalGuard/assets/og.png">
-    <meta name="twitter:image:alt" content="AI Signal Guard 浏览器端 AI 网络与身份信号体检">
+    <meta name="twitter:image:alt" content="AI Signal Guard 数字身份匹配分析">
     <link rel="icon" href="favicon.svg?v=20260708-3" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.min.css?v=20260715-3">
+    <link rel="stylesheet" href="styles.min.css?v=20260715-9">
     <script>
       window.dataLayer = window.dataLayer || [];
       window.gtag = window.gtag || function () {
         window.dataLayer.push(arguments);
       };
     </script>
-    <script vite-ignore src="app.min.js?v=20260715-3" defer></script>
+    <script vite-ignore src="app.min.js?v=20260715-9" defer></script>
   </head>
-  <body>
-    <a class="skip-link" href="#main">跳到检测结果</a>
+  <body data-app-stage="select">
+    <a class="skip-link" href="#main">跳到主要内容</a>
     <div class="grain" aria-hidden="true"></div>
 
     <!-- Tabler Icons 3.34.1 · MIT · Copyright (c) 2020-2024 Paweł Kuna. Full notice: tips-demo.html -->
@@ -98,30 +98,13 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand-lockup">
-          <span class="brand-mark" aria-hidden="true"><img src="favicon.svg?v=20260708-3" alt=""></span>
-          <span class="brand-text">AI Signal Guard</span>
-          <span class="brand-sub">AI Signal Guard · browser analyzer</span>
+          <a class="brand-home" href="https://betaer.github.io/AiSignalGuard/" aria-label="打开 AI Signal Guard 首页">
+            <span class="brand-mark" aria-hidden="true"><img src="favicon.svg?v=20260708-3" alt=""></span>
+            <span class="brand-text">AI Signal Guard</span>
+          </a>
+          <span class="brand-sub">数字身份匹配分析 · 结果仅在浏览器处理</span>
         </div>
 
-        <div class="top-actions">
-          <button class="text-action" id="privacy-toggle" type="button">◎ 隐私模式</button>
-          <button class="text-action" id="run-all" type="button">↻ 重测</button>
-          <a
-            class="github-link"
-            href="https://github.com/betaer/AiSignalGuard"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="打开 GitHub 仓库"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path
-                d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"
-              ></path>
-              <path d="M9 18c-4.51 2-5-2-7-2"></path>
-            </svg>
-            <span id="star-count">Star</span>
-          </a>
-        </div>
       </div>
 
       <nav class="anchor-nav" aria-label="检测分区">
@@ -130,11 +113,182 @@
     </header>
 
     <main class="shell" id="main">
-      <section class="score-stage" id="sec-score" aria-labelledby="score-title">
-        <p class="eyebrow" id="score-title">综合信任评估 · Trust Score</p>
+      <section class="identity-entry" id="identity-entry" aria-labelledby="identity-entry-title">
+        <header class="identity-entry-hero">
+          <p class="identity-entry-kicker">Digital Identity Match</p>
+          <h1 id="identity-entry-title" tabindex="-1">你想验证哪种数字身份？</h1>
+          <p class="identity-entry-lead">
+            选择一个目标画像，我们会从网络、位置、浏览器与服务路径等环境信号，分析互联网如何识别你的环境。
+          </p>
+          <p class="identity-entry-boundary">
+            分析结果描述的是环境特征相似度，不用于判断你的真实个人身份。
+          </p>
+        </header>
+
+        <form class="identity-selector" id="identity-form">
+          <fieldset class="identity-fieldset">
+            <legend class="visually-hidden">选择目标数字身份画像</legend>
+            <div class="identity-card-grid">
+              <label class="identity-card" for="identity-us-consumer">
+                <input
+                  class="identity-radio"
+                  id="identity-us-consumer"
+                  name="identity-profile"
+                  type="radio"
+                  value="us_consumer"
+                  data-profile-id="us_consumer"
+                >
+                <span class="identity-card-heading">
+                  <span class="identity-card-icon" aria-hidden="true">🇺🇸</span>
+                  <span class="identity-card-name">美国普通用户</span>
+                </span>
+                <span class="identity-card-description">像一个真实的美国本地消费环境</span>
+                <span class="identity-card-focus">重点分析</span>
+                <span class="identity-tag-list" aria-label="重点分析信号">
+                  <span class="identity-tag">IP 所在地</span>
+                  <span class="identity-tag">住宅网络</span>
+                  <span class="identity-tag">时区与语言</span>
+                  <span class="identity-tag">DNS / WebRTC</span>
+                  <span class="identity-tag">消费服务</span>
+                </span>
+              </label>
+
+              <label class="identity-card" for="identity-tiktok-creator">
+                <input
+                  class="identity-radio"
+                  id="identity-tiktok-creator"
+                  name="identity-profile"
+                  type="radio"
+                  value="tiktok_creator"
+                  data-profile-id="tiktok_creator"
+                >
+                <span class="identity-card-heading">
+                  <span class="identity-card-icon" aria-hidden="true">🎬</span>
+                  <span class="identity-card-name">TikTok 创作者</span>
+                </span>
+                <span class="identity-card-description">像一个使用美国环境的内容创作者</span>
+                <span class="identity-card-focus">重点分析</span>
+                <span class="identity-tag-list" aria-label="重点分析信号">
+                  <span class="identity-tag">网络类型</span>
+                  <span class="identity-tag">TikTok</span>
+                  <span class="identity-tag">Instagram</span>
+                  <span class="identity-tag">YouTube</span>
+                  <span class="identity-tag">地理一致性</span>
+                </span>
+              </label>
+
+              <label class="identity-card" for="identity-cross-border-seller">
+                <input
+                  class="identity-radio"
+                  id="identity-cross-border-seller"
+                  name="identity-profile"
+                  type="radio"
+                  value="cross_border_seller"
+                  data-profile-id="cross_border_seller"
+                >
+                <span class="identity-card-heading">
+                  <span class="identity-card-icon" aria-hidden="true">🛒</span>
+                  <span class="identity-card-name">跨境卖家</span>
+                </span>
+                <span class="identity-card-description">像一个使用美国商业环境的跨境经营者</span>
+                <span class="identity-card-focus">重点分析</span>
+                <span class="identity-tag-list" aria-label="重点分析信号">
+                  <span class="identity-tag">IP 信誉</span>
+                  <span class="identity-tag">商业服务</span>
+                  <span class="identity-tag">浏览器环境</span>
+                  <span class="identity-tag">位置一致性</span>
+                </span>
+              </label>
+
+              <label class="identity-card" for="identity-ai-worker">
+                <input
+                  class="identity-radio"
+                  id="identity-ai-worker"
+                  name="identity-profile"
+                  type="radio"
+                  value="ai_worker"
+                  data-profile-id="ai_worker"
+                >
+                <span class="identity-card-heading">
+                  <span class="identity-card-icon" aria-hidden="true">🤖</span>
+                  <span class="identity-card-name">AI Worker</span>
+                </span>
+                <span class="identity-card-description">像一个具备国际开发环境的 AI 工作者</span>
+                <span class="identity-card-focus">重点分析</span>
+                <span class="identity-tag-list" aria-label="重点分析信号">
+                  <span class="identity-tag">OpenAI / Claude</span>
+                  <span class="identity-tag">Gemini</span>
+                  <span class="identity-tag">GitHub</span>
+                  <span class="identity-tag">Package Registry</span>
+                </span>
+              </label>
+
+              <label class="identity-card" for="identity-enterprise-employee">
+                <input
+                  class="identity-radio"
+                  id="identity-enterprise-employee"
+                  name="identity-profile"
+                  type="radio"
+                  value="enterprise_employee"
+                  data-profile-id="enterprise_employee"
+                >
+                <span class="identity-card-heading">
+                  <span class="identity-card-icon" aria-hidden="true">💼</span>
+                  <span class="identity-card-name">企业员工</span>
+                </span>
+                <span class="identity-card-description">像一个使用海外企业办公环境的员工</span>
+                <span class="identity-card-focus">重点分析</span>
+                <span class="identity-tag-list" aria-label="重点分析信号">
+                  <span class="identity-tag">企业网络</span>
+                  <span class="identity-tag">VPN 信号</span>
+                  <span class="identity-tag">位置与 DNS</span>
+                  <span class="identity-tag">浏览器安全</span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="identity-entry-actions">
+            <button class="identity-primary-action" id="identity-start" type="submit" disabled>
+              开始分析所选身份
+            </button>
+            <button class="identity-secondary-action" id="identity-generic" type="button">
+              跳过选择，使用通用数字身份分析
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="analysis-progress" id="analysis-progress" aria-labelledby="analysis-progress-title" hidden>
+        <p class="analysis-progress-kicker">Environment Signal Analysis</p>
+        <div class="analysis-progress-profile" id="analysis-progress-profile" aria-hidden="true">◎</div>
+        <h1 id="analysis-progress-title" tabindex="-1">正在分析互联网如何识别你的环境</h1>
+        <p id="analysis-progress-copy">正在收集网络、浏览器与服务路径信号，请保持当前页面开启。</p>
+        <div
+          class="analysis-progress-meter"
+          id="analysis-progress-meter"
+          role="progressbar"
+          aria-label="身份分析进度"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span id="analysis-progress-fill"></span>
+        </div>
+        <p class="analysis-progress-status" id="analysis-progress-status" role="status" aria-live="polite">
+          准备环境检测…
+        </p>
+      </section>
+
+      <div class="analysis-workspace" id="analysis-workspace" hidden>
+        <p class="visually-hidden" id="identity-result-status" role="status" aria-live="polite" aria-atomic="true"></p>
+        <div id="identity-result-root"></div>
+
+        <section class="score-stage" id="sec-score" aria-labelledby="score-title">
+        <p class="eyebrow" id="score-title">高级网络风险诊断 · 不计入身份匹配分</p>
         <div class="score-orbit">
           <div class="score-core">
-            <svg id="score-ring" class="score-gauge" viewBox="0 0 120 120" role="img" aria-label="综合信任分进度"></svg>
+            <svg id="score-ring" class="score-gauge" viewBox="0 0 120 120" role="img" aria-label="网络信号参考分进度"></svg>
             <div class="score-copy" role="status" aria-live="polite" aria-atomic="true">
               <span class="score-number" id="score-number">··</span>
               <span class="score-status" id="score-status">检测中</span>
@@ -163,23 +317,26 @@
         </div>
 
         <div class="info-panel" id="rules-panel" hidden>
-          <strong>评分口径：满分 100，命中即扣，出口 IP 取最重一项。</strong>
+          <strong>评分口径：满分 100，命中即扣；所有已观察到的 IPv4 / IPv6 出口共同判定，出口 IP 取最重一项。</strong>
           <p>
             重扣：出口 IP 在<span class="china-emphasis">中国</span> -35 · 机房 / VPN 出口 -22 ·
             <span class="china-emphasis">大陆直连</span> -20 · DNS
-            泄漏<span class="china-emphasis">中国解析器</span> -15 · WebRTC 出口外公网候选 -12 · AI
-            路径出口在<span class="china-emphasis">中国</span> -15。
+            泄漏<span class="china-emphasis">中国解析器</span> -15 · WebRTC 出口外公网候选 -12 · 至少 2 个实际 AI
+            目标的服务侧国家标签一致命中当前<span class="china-emphasis">中国</span>口径 -15。
           </p>
           <p>
-            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 出口 IP 未测出 -8 · 语言含中文 -4 ·
+            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 出口 IP 情报不完整（仅测出地址或完全无法读取）-8 · 语言含中文 -4 ·
             时区在<span class="china-emphasis">中国</span> -4 · Emoji / 字体弱信号各 -1。
             多源 IP 情报冲突（至少 3 个地理来源、2 个及以上分歧时）-4。
           </p>
           <p>
             不适用或证据不足的检测项（如 Windows 上的 Emoji 项、地理来源不足的多源交叉）按中性处理，不扣分也不标绿；
-            出口 IP 完全读不到是例外，按上面“未测出 -8”计。
+            出口 IP 只读到地址但缺少可核对的地区，或完全无法读取，是例外，按上面“情报不完整 -8”计。
           </p>
-          <p>AI 官方服务状态只用于排查平台故障，不参与综合信任分。</p>
+          <p>
+            Cloudflare 基准只用于观察路径，不参与网络信号参考分；单个 AI 目标命中或同一目标前后标签不一致时按未确认处理，不扣分。
+            AI 官方服务状态也只用于排查平台故障，不参与网络信号参考分。
+          </p>
         </div>
 
         <div class="info-panel" id="privacy-panel" hidden>
@@ -188,21 +345,24 @@
             本地项包括语言、时区、Emoji / 字体渲染和浏览器指纹。联网项包括 IP 情报、WebRTC
             STUN、连通性探测、DNS 泄漏检测、AI 路径和 AI 服务状态。
           </p>
-          <p>顶栏隐私模式会模糊 IP、组织、DNS 等敏感字段，方便截图讨论。</p>
+          <p>
+            “复制给 AI”生成的结构化报告始终脱敏：IPv4 仅保留前三段、IPv6 仅保留前三组，
+            mDNS、Canvas 与声纹标识不写入原值。右下角“隐私模式”只控制页面敏感字段的显示。
+          </p>
           <p>
             本站使用 Google Analytics 统计访问情况（延迟加载）。GA 会向 Google 发送页面地址、页面来源
             （referrer）、客户端标识、语言、屏幕分辨率、浏览器与系统版本等元数据；本页的检测结果本身不会上传。
           </p>
         </div>
-      </section>
+        </section>
 
-      <div id="section-root"></div>
+        <div id="section-root"></div>
+      </div>
     </main>
 
     <footer class="site-footer">
       <div>
         <a href="https://betaer.github.io/AiSignalGuard/" target="_blank" rel="noopener noreferrer">AI Signal Guard</a>
-        <span>Client-side AI network, DNS/WebRTC leak, browser fingerprint, and service path checker.</span>
       </div>
       <div>
         <a href="https://github.com/betaer/AiSignalGuard/issues/new/choose" target="_blank" rel="noopener noreferrer">反馈问题</a>
@@ -211,27 +371,82 @@
       </div>
     </footer>
 
-    <div class="floating-actions" role="group" aria-label="快捷操作">
-      <button class="floating-share" id="copy-summary" type="button" aria-label="复制诊断摘要" title="复制脱敏诊断摘要">
-        <svg class="floating-share-icon floating-share-icon-share" aria-hidden="true" viewBox="0 0 24 24">
+    <nav class="floating-actions" id="floating-actions" aria-label="快捷工具">
+      <button class="floating-action floating-retest" id="run-all" type="button" aria-label="重新测试" title="重新测试">
+        <svg class="floating-action-icon floating-icon-retest" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+          <path d="M3 12a9 9 0 1 0 3 -6.7"></path>
+          <path d="M3 4v6h6"></path>
+        </svg>
+        <span class="floating-action-label">重新测试</span>
+      </button>
+      <a class="floating-action floating-ai-shortcut" id="chatgpt-shortcut" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" aria-label="打开 ChatGPT" title="打开 ChatGPT">
+        <svg class="floating-action-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+          <path d="M8.5 4.5A5 5 0 0 1 17 7a5 5 0 0 1 1 9.5A5 5 0 0 1 9.5 19a5 5 0 0 1 -6 -7.5A5 5 0 0 1 8.5 4.5z"></path>
+          <path d="m8 9 4 -2 4 2v5l-4 2-4-2z"></path>
+        </svg>
+        <span class="floating-action-label">ChatGPT</span>
+      </a>
+      <a class="floating-action floating-ai-shortcut" id="claude-shortcut" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer" aria-label="打开 Claude" title="打开 Claude">
+        <svg class="floating-action-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+          <path d="M12 3v18"></path>
+          <path d="M3 12h18"></path>
+          <path d="m5.6 5.6 12.8 12.8"></path>
+          <path d="m18.4 5.6 -12.8 12.8"></path>
+          <circle cx="12" cy="12" r="3.5"></circle>
+        </svg>
+        <span class="floating-action-label">Claude</span>
+      </a>
+      <button class="floating-action floating-copy floating-copy-ai" id="copy-ai-report" type="button" aria-label="复制给 AI 分析" title="复制给 AI 分析">
+        <svg class="floating-action-icon floating-copy-icon-default" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+          <path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"></path>
+          <path d="M9 3h6v4h-6z"></path>
+          <path d="m12 11 .7 1.8L15 13.5l-2.3.7L12 16l-.7-1.8-2.3-.7 2.3-.7z"></path>
+        </svg>
+        <svg class="floating-action-icon floating-copy-icon-check" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+          <path d="m5 12.5 4.4 4.4L19 7.3"></path>
+        </svg>
+        <span class="floating-action-label floating-copy-ai-label">复制给 AI</span>
+      </button>
+      <button class="floating-action floating-copy floating-share" id="copy-summary" type="button" aria-label="复制分享文案" title="复制分享文案">
+        <svg class="floating-action-icon floating-copy-icon-default" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
           <circle cx="18" cy="5" r="3"></circle>
           <circle cx="6" cy="12" r="3"></circle>
           <circle cx="18" cy="19" r="3"></circle>
           <path d="M8.6 10.6 15.4 6.4"></path>
           <path d="M8.6 13.4 15.4 17.6"></path>
         </svg>
-        <svg class="floating-share-icon floating-share-icon-check" aria-hidden="true" viewBox="0 0 24 24">
+        <svg class="floating-action-icon floating-copy-icon-check" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
           <path d="m5 12.5 4.4 4.4L19 7.3"></path>
         </svg>
-        <span class="floating-share-label">复制摘要</span>
+        <span class="floating-action-label floating-share-label">复制分享文案</span>
       </button>
-      <a class="floating-top-link" href="#sec-score" aria-label="返回顶部">
-        <svg class="floating-top-icon" aria-hidden="true" viewBox="0 0 24 24">
+      <button class="floating-action floating-privacy" id="privacy-toggle" type="button" aria-label="开启隐私模式" aria-pressed="false" title="开启隐私模式">
+        <svg class="floating-action-icon floating-privacy-icon-eye" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+          <path d="M2.5 12s3.5 -6 9.5 -6s9.5 6 9.5 6s-3.5 6 -9.5 6s-9.5 -6 -9.5 -6z"></path>
+          <circle cx="12" cy="12" r="2.5"></circle>
+        </svg>
+        <svg class="floating-action-icon floating-privacy-icon-off" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+          <path d="M3 3l18 18"></path>
+          <path d="M10.7 6.2A9.4 9.4 0 0 1 12 6c6 0 9.5 6 9.5 6a17.8 17.8 0 0 1 -2.1 2.8"></path>
+          <path d="M6.6 6.6C4 8.3 2.5 12 2.5 12s3.5 6 9.5 6a9 9 0 0 0 3.1 -.5"></path>
+        </svg>
+        <span class="floating-action-label floating-privacy-label">隐私模式</span>
+      </button>
+      <a class="floating-action floating-github" id="github-shortcut" href="https://github.com/betaer/AiSignalGuard" target="_blank" rel="noopener noreferrer" aria-label="打开 GitHub 仓库" title="打开 GitHub 仓库">
+        <svg class="floating-action-icon floating-github-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+          <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path>
+          <path d="M9 18c-4.51 2-5-2-7-2"></path>
+        </svg>
+        <span class="floating-action-label floating-github-label">GitHub · <span id="star-count">Star</span></span>
+      </a>
+      <a class="floating-action floating-top-link" id="floating-top" href="#main" aria-label="回到顶部" title="回到顶部">
+        <svg class="floating-action-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
           <path d="M12 19V5"></path>
           <path d="m6 11 6-6 6 6"></path>
         </svg>
-        <span class="floating-top-label">返回顶部</span>
+        <span class="floating-action-label">回到顶部</span>
       </a>
-    </div>
+      <span class="visually-hidden" id="floating-action-status" aria-live="polite"></span>
+    </nav>
   </body>
 </html>
