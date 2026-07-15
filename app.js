@@ -2982,7 +2982,7 @@
         escapeHtml(meta.icon) +
         '"></use></svg><span class="score-node-label">' +
         escapeHtml(meta.label) +
-        '</span><span class="score-node-tip" id="' +
+        '</span><span class="score-node-tip tooltip-surface" id="' +
         tipId +
         '" role="tooltip"><strong class="score-tip-title">' +
         escapeHtml(segment.name) +
@@ -3937,7 +3937,7 @@
             (row.note
               ? '<span class="fingerprint-help"><span class="fingerprint-help-trigger" tabindex="0" title="悬停查看说明" aria-label="查看 ' +
                 escapeHtml(row.key) +
-                ' 说明">ⓘ</span><span class="fingerprint-help-bubble" role="tooltip">' +
+                ' 说明">i</span><span class="fingerprint-help-bubble tooltip-surface" role="tooltip">' +
                 highlightRiskText(row.note) +
                 "</span></span>"
               : "") +
