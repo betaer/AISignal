@@ -992,23 +992,70 @@
     var canvasHash = getCanvasHash();
     var languages = Array.from(nav.languages || [nav.language || ""]).filter(Boolean);
     var dpr = window.devicePixelRatio || 1;
+    var platform = nav.platform || "未知";
+    var platformLabel = /^Mac/i.test(platform) ? "Mac" : platform;
+    var userAgent = nav.userAgent || "未知";
+    var screenWidth = screenInfo.width || "?";
+    var screenHeight = screenInfo.height || "?";
+    var colorDepth = screenInfo.colorDepth || "?";
     return [
-      { key: "UserAgent", value: nav.userAgent || "未知", sensitive: true, wide: true },
-      { key: "平台 Platform", value: nav.platform || "未知" },
       {
-        key: "屏幕",
-        value:
-          (screenInfo.width || "?") +
-          "x" +
-          (screenInfo.height || "?") +
-          " @" +
-          dpr +
-          "x · " +
-          (screenInfo.colorDepth || "?") +
-          "bit"
+        key: "UserAgent",
+        value: userAgent,
+        sensitive: true,
+        wide: true,
+        note:
+          /Mac OS X/i.test(userAgent) && /Intel Mac/i.test(userAgent)
+            ? "User-Agent 中的 Intel Mac OS X 是浏览器兼容性标识，不代表实际 CPU 架构或 macOS 版本。"
+            : "User-Agent 是浏览器提供的兼容性字符串，不等同于系统硬件信息。"
       },
-      { key: "CPU 核心", value: nav.hardwareConcurrency ? nav.hardwareConcurrency + " 核" : "未知" },
-      { key: "设备内存", value: nav.deviceMemory ? nav.deviceMemory + " GB" : "未知" },
+      {
+        key: "平台 Platform",
+        value: platformLabel,
+        note:
+          /MacIntel|MacPPC|Mac68K/i.test(platform)
+            ? "浏览器原始值为 " + platform + "。这是 macOS 浏览器的兼容性标识；Apple Silicon 浏览器通常也会返回它，网页无法仅凭此字段确认 Intel 还是 Apple 芯片。"
+            : "navigator.platform 是浏览器平台标识，不是可靠的 CPU 架构检测接口。"
+      },
+      {
+        key: "屏幕 CSS 像素",
+        value:
+          screenWidth +
+          "x" +
+          screenHeight +
+          " · @" +
+          dpr +
+          "x HiDPI / DPR " +
+          dpr +
+          " · " +
+          colorDepth +
+          "bit",
+        note:
+          screenWidth +
+          "x" +
+          screenHeight +
+          " 是浏览器看到的逻辑（CSS）分辨率；@" +
+          dpr +
+          "x HiDPI / DPR " +
+          dpr +
+          " 表示一个 CSS 像素对应约 " +
+          dpr +
+          " 个设备像素。" +
+          colorDepth +
+          "bit 是浏览器报告的色深值，不代表显示器面板的真实色深或 HDR 能力。"
+      },
+      {
+        key: "CPU 逻辑线程",
+        value: nav.hardwareConcurrency ? nav.hardwareConcurrency + " 线程" : "未知",
+        note:
+          "navigator.hardwareConcurrency 返回浏览器可见的逻辑处理器数量，不保证等于芯片宣传的物理核心数。M4 Pro 的 14 核 CPU 在 Apple Silicon 上通常对应 14 个逻辑线程，因此这里的 14 与芯片规格相符。"
+      },
+      {
+        key: "设备内存估计",
+        value: nav.deviceMemory ? nav.deviceMemory + " GB（浏览器估计）" : "未知",
+        note:
+          "navigator.deviceMemory 是浏览器为隐私保护而桶化、取整后的内存估计值，不是 Mac 的实际统一内存。24 GB 设备返回 16 GB 属于正常现象，网页不能用它读取真实 24 GB。"
+      },
       { key: "语言", value: languages.join(", ") || "未知" },
       { key: "时区", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "未知" },
       { key: "Canvas 指纹", value: canvasHash, sensitive: true },
@@ -3868,9 +3915,9 @@
       : [
           { key: "UserAgent", value: "检测中" },
           { key: "平台 Platform", value: "检测中" },
-          { key: "屏幕", value: "检测中" },
-          { key: "CPU 核心", value: "检测中" },
-          { key: "设备内存", value: "检测中" },
+          { key: "屏幕 CSS 像素", value: "检测中" },
+          { key: "CPU 逻辑线程", value: "检测中" },
+          { key: "设备内存估计", value: "检测中" },
           { key: "语言", value: "检测中" },
           { key: "时区", value: "检测中" },
           { key: "Canvas 指纹", value: "检测中" },
@@ -3878,7 +3925,7 @@
         ];
     return (
       '<section class="section" id="sec-fp">' +
-      renderSectionHead("浏览器指纹", "本机可见环境") +
+      renderSectionHead("浏览器指纹", "浏览器可见环境") +
       '<div class="panel"><div class="fingerprint-grid">' +
       rows
         .map(function (row) {
@@ -3887,6 +3934,13 @@
             (row.wide ? "is-wide" : "") +
             '"><div class="fingerprint-key">' +
             escapeHtml(row.key) +
+            (row.note
+              ? '<details class="fingerprint-help"><summary title="点击查看说明" aria-label="查看 ' +
+                escapeHtml(row.key) +
+                ' 说明">ⓘ</summary><div class="fingerprint-help-bubble">' +
+                highlightRiskText(row.note) +
+                "</div></details>"
+              : "") +
             '</div><div class="fingerprint-value ' +
             (row.sensitive ? "sensitive" : "") +
             '" title="' +
