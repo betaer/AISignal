@@ -15,6 +15,21 @@ AI Signal Guard 是一个纯静态的浏览器端 AI 网络与身份信号体检
 
 ![AI Signal Guard 产品截图](assets/readme-dashboard.png)
 
+## 出口 IP 截图名片
+
+出口 IP 区域会把当前 IPv4、IPv6、位置、ASN、组织 / ISP 与服务商类型汇总成一张截图名片，并通过文字和颜色同时标明可信、需留意、高风险或尚未确认。桌面端采用四列摘要，手机端自动重排为 2 × 2；原有“出口 IP 质量”和“一致性核对”仍保留在名片下方。
+
+<table>
+  <tr>
+    <th width="68%">桌面版</th>
+    <th width="32%">手机版</th>
+  </tr>
+  <tr>
+    <td valign="top"><img src="assets/ip-snapshot-card-desktop.png" alt="AI Signal Guard 出口 IP 截图名片桌面版"></td>
+    <td valign="top"><img src="assets/ip-snapshot-card-mobile.png" alt="AI Signal Guard 出口 IP 截图名片手机版"></td>
+  </tr>
+</table>
+
 
 ## 它解决什么问题
 
