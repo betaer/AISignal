@@ -958,17 +958,22 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       organizationKeys[key] = true;
       return true;
     });
-    var typeText = types.join(" ");
     var combined = types.concat(organizations).join(" · ");
-    var residential = /residential|consumer|fixed(?:\s|-)?line|broadband/i.test(typeText);
+    var classifications = state.exitIps.map(function (item) {
+      return classifyNetworkType(meaningfulIpField(item.type) ? item.type : "");
+    });
     return {
       types: types,
       organizations: organizations,
       combined: combined,
-      residential: residential,
-      isp: /\bisp\b|telecom|broadband|cable|fiber|mobile|cellular/i.test(typeText),
+      residential: classifications.some(function (classification) {
+        return classification.residential;
+      }),
+      isp: classifications.some(function (classification) {
+        return classification.residential || classification.mobile || classification.isp;
+      }),
       enterprise: /enterprise|business|corporate|managed/i.test(combined),
-      vpn: /\bvpn\b|proxy/i.test(combined),
+      vpn: state.exitIps.some(isVpnIpResult),
       datacenter: state.exitIps.some(isHostingIpResult)
     };
   }
@@ -1373,30 +1378,83 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   }
 
   function isHostingOrg(text) {
-    return /hosting|\bcloud\b|datacenter|data center|colo|vps|vpn|proxy|server|amazon web services|\baws\b|google cloud|\bgcp\b|microsoft azure|\bazure\b|oracle cloud|\boci\b|digitalocean|linode|akamai|ovh|hetzner|vultr|leaseweb|m247|alibaba cloud|aliyun|tencent cloud|huawei cloud|cloudflare/i.test(
+    return /hosting|\bcloud\b|datacenter|data center|colo|vps|vpn|proxy|\btor\b|anonymous|server|amazon web services|\baws\b|google cloud|\bgcp\b|microsoft azure|\bazure\b|oracle cloud|\boci\b|digitalocean|linode|akamai|ovh|hetzner|vultr|leaseweb|m247|alibaba cloud|aliyun|tencent cloud|huawei cloud|cloudflare/i.test(
       text || ""
     );
   }
 
-  function hasHostingNetworkType(value) {
-    return /hosting|data.?center|\bcloud\b|server|colo|vps|\bvpn\b|proxy/i.test(value || "");
-  }
-
-  function hasNonHostingNetworkType(value) {
-    return /residential|consumer|fixed(?:\s|-)?line|broadband|mobile|cellular|\bisp\b|telecom|cable|fiber|carrier/i.test(
-      value || ""
-    );
+  function classifyNetworkType(value) {
+    var raw = meaningfulIpField(value) ? String(value).trim() : "";
+    var residential = /residential|consumer|fixed(?:\s|-)?line|broadband/i.test(raw);
+    var mobile = /mobile|cellular/i.test(raw);
+    var isp = /\bisp\b|telecom|cable|fiber|carrier/i.test(raw);
+    var vpn = /\bvpn\b/i.test(raw);
+    var proxy = /\bproxy\b/i.test(raw);
+    var tor = /\btor\b/i.test(raw);
+    var anonymous = /anonymous/i.test(raw);
+    var hosting = /hosting|data.?center|\bcloud\b|server|colo|vps/i.test(raw);
+    var access = residential || mobile || isp;
+    var proxyLike = vpn || proxy || tor || anonymous;
+    var risky = proxyLike || hosting;
+    var conflict = access && risky;
+    var label = "类型待确认";
+    if (conflict) {
+      label = "类型证据分歧";
+    } else if (proxyLike) {
+      label = "VPN / 代理";
+    } else if (hosting) {
+      label = "机房 / 云网络";
+    } else if (mobile) {
+      label = "移动运营商";
+    } else if (residential) {
+      label = "住宅宽带";
+    } else if (isp) {
+      label = "运营商网络";
+    }
+    return {
+      raw: raw,
+      residential: residential,
+      mobile: mobile,
+      isp: isp,
+      vpn: vpn,
+      proxy: proxy,
+      tor: tor,
+      anonymous: anonymous,
+      hosting: hosting,
+      access: access,
+      proxyLike: proxyLike,
+      risky: risky,
+      known: access || risky,
+      conflict: conflict,
+      label: label
+    };
   }
 
   function isHostingIpResult(item) {
-    var type = meaningfulIpField(item && item.type) ? String(item.type) : "";
-    if (hasHostingNetworkType(type)) {
+    var classification = classifyNetworkType(item && item.type);
+    if (classification.risky) {
       return true;
     }
-    if (hasNonHostingNetworkType(type)) {
+    if (classification.access) {
       return false;
     }
-    return Boolean(item && item.hostEvidence) || isHostingOrg([item && item.org, item && item.asn, type].join(" "));
+    return (
+      Boolean(item && item.hostEvidence) ||
+      isHostingOrg([item && item.org, item && item.asn, classification.raw].join(" "))
+    );
+  }
+
+  function isVpnIpResult(item) {
+    var classification = classifyNetworkType(item && item.type);
+    if (classification.proxyLike) {
+      return true;
+    }
+    if (classification.known) {
+      return false;
+    }
+    return /\bvpn\b|\bproxy\b|\btor\b|anonymous/i.test(
+      [item && item.org, item && item.asn, classification.raw].join(" ")
+    );
   }
 
   function isPrivateIp(ip) {
@@ -2571,11 +2629,10 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       })
     );
     var mergedType = types.join(" / ") || best.type || "—";
-    var explicitHostingType = hasHostingNetworkType(mergedType);
-    var explicitNonHostingType = hasNonHostingNetworkType(mergedType);
+    var mergedClassification = classifyNetworkType(mergedType);
     var hostEvidence =
-      explicitHostingType ||
-      (!explicitNonHostingType &&
+      mergedClassification.risky ||
+      (!mergedClassification.access &&
         evidence.some(function (item) {
           return isHostingOrg([item.org, item.asn, item.type].join(" "));
         }));
@@ -4758,16 +4815,17 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   }
 
   function redactDiagnosticReportText(text) {
-    var replacements = [];
+    var addressReplacements = [];
+    var opaqueReplacements = [];
     function addAddress(value) {
       var raw = String(value || "").trim();
       if (!raw) {
         return;
       }
       if (isMdnsAddress(raw)) {
-        replacements.push([raw, "xxxx.local"]);
+        addressReplacements.push([raw, "xxxx.local"]);
       } else if (isIpv4Address(canonicalIpAddress(raw)) || isIpv6Address(canonicalIpAddress(raw))) {
-        replacements.push([raw, maskReportIp(raw)]);
+        addressReplacements.push([raw, maskReportIp(raw)]);
       }
     }
     state.exitIps.forEach(function (item) {
@@ -4787,57 +4845,86 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     state.fp.forEach(function (item) {
       var raw = String(item.value || "");
       if (/canvas|声纹|audio/i.test(item.key || "") && raw.length >= 8 && !/检测中|计算中|不可读|未确认/.test(raw)) {
-        replacements.push([raw, "[已省略]"]);
+        opaqueReplacements.push([raw, "[已省略]"]);
       }
     });
-    replacements
-      .sort(function (a, b) {
-        return b[0].length - a[0].length;
-      })
-      .forEach(function (entry) {
-        var escaped = entry[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        text = text.replace(new RegExp(escaped, "gi"), entry[1]);
-      });
-    return text
-      .replace(/\b(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}\b/g, "$1.x")
-      .replace(/\b[a-z0-9][a-z0-9-]{3,}\.local\b/gi, "xxxx.local")
-      .replace(/\b(?:[0-9a-f]{1,4}:){2,7}[0-9a-f:]{0,4}\b/gi, function (value) {
-        return isIpv6Address(canonicalIpAddress(value)) ? maskReportIp(value) : value;
-      });
+    function applyExactReplacements(value, replacements) {
+      replacements
+        .sort(function (a, b) {
+          return b[0].length - a[0].length;
+        })
+        .forEach(function (entry) {
+          var escaped = entry[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          value = value.replace(new RegExp(escaped, "gi"), entry[1]);
+        });
+      return value;
+    }
+    var redacted = applyExactReplacements(text, opaqueReplacements).replace(
+      /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+local\b/gi,
+      "xxxx.local"
+    );
+    redacted = redacted.replace(
+      /\[(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.]*(?:%[0-9a-z_.-]+)?\]|(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.]*(?:%[0-9a-z_.-]+)?/gi,
+      function (candidate) {
+        var bracketed = candidate.charAt(0) === "[" && candidate.charAt(candidate.length - 1) === "]";
+        var value = bracketed ? candidate.slice(1, -1) : candidate;
+        var suffix = "";
+        while (/\.$/.test(value) && !isIpv6Address(canonicalIpAddress(value))) {
+          value = value.slice(0, -1);
+          suffix = "." + suffix;
+        }
+        if (!isIpv6Address(canonicalIpAddress(value))) {
+          return candidate;
+        }
+        var masked = maskReportIp(value);
+        return (bracketed ? "[" + masked + "]" : masked) + suffix;
+      }
+    );
+    redacted = applyExactReplacements(redacted, addressReplacements);
+    return redacted.replace(/\b(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}\b/g, "$1.x");
   }
 
-  function reportNetworkTypeFromValue(type) {
-    if (/vpn/i.test(type || "")) {
+  function reportNetworkTypeFromValue(type, result) {
+    var classification = classifyNetworkType(type);
+    if (classification.conflict) {
+      return "类型证据分歧（来源标签）";
+    }
+    if (classification.tor) {
+      return "Tor（来源标签）";
+    }
+    if (classification.anonymous) {
+      return "Anonymous（来源标签）";
+    }
+    if (classification.vpn) {
       return "VPN（来源标签）";
     }
-    if (/proxy/i.test(type || "")) {
+    if (classification.proxy) {
       return "Proxy（来源标签）";
     }
-    if (/hosting|data.?center|cloud|server/i.test(type || "")) {
+    if (classification.hosting) {
       return "Datacenter（来源标签）";
     }
-    if (/residential/i.test(type || "")) {
+    if (classification.residential) {
       return "Residential（来源标签）";
     }
-    if (/mobile|cellular/i.test(type || "")) {
+    if (classification.mobile) {
       return "Mobile（来源标签）";
     }
-    if (/isp/i.test(type || "")) {
+    if (classification.isp) {
       return "ISP（来源标签）";
     }
-    return meaningfulIpField(type) ? "未确认（来源返回未识别类型）" : "类型未确认";
+    if (result && isHostingIpResult(result)) {
+      return "疑似机房 / 云网络（组织名称启发式，非服务商确认）";
+    }
+    return classification.raw ? "未确认（来源返回未识别类型）" : "类型未确认";
   }
 
   function reportNetworkType() {
-    var rawTypes = uniqueValues(
-      state.exitIps
-        .map(function (item) {
-          return meaningfulIpField(item.type) ? String(item.type) : "";
-        })
-        .filter(Boolean)
+    var labels = uniqueValues(
+      state.exitIps.map(function (item) {
+        return reportNetworkTypeFromValue(item.type, item);
+      })
     );
-    var labels = rawTypes.map(reportNetworkTypeFromValue);
-    labels = uniqueValues(labels);
     if (labels.length) {
       return labels.join(" / ");
     }
@@ -5014,7 +5101,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
               reportCountryCode(item.cc || item.country),
               reportAsn(item.asn),
               reportInlineData(item.org, "组织未确认", 120),
-              reportInlineData(reportNetworkTypeFromValue(item.type), "类型未确认", 60)
+              reportInlineData(reportNetworkTypeFromValue(item.type, item), "类型未确认", 120)
             ].join(" / ")
         );
       });
@@ -5809,34 +5896,11 @@ import { analyzeIdentity } from "./identityAnalysis.js";
 
   function ipSnapshotTypeLabel(result) {
     var rawType = meaningfulIpField(result && result.type) ? String(result.type) : "";
-    var hasResidential = /residential|consumer|fixed(?:\s|-)?line|broadband/i.test(rawType);
-    var hasMobile = /mobile|cellular/i.test(rawType);
-    var hasVpnOrProxy = /\bvpn\b|\bproxy\b|\btor\b|anonymous/i.test(rawType);
-    var hasDatacenter = /hosting|data.?center|cloud|server|colo|vps/i.test(rawType);
-    var hasIsp = /\bisp\b|telecom|cable|fiber/i.test(rawType);
-
-    if ((hasResidential || hasMobile) && (hasVpnOrProxy || hasDatacenter)) {
-      return "类型证据分歧";
+    var classification = classifyNetworkType(rawType);
+    if (classification.known) {
+      return classification.label;
     }
-    if (hasVpnOrProxy) {
-      return "VPN / 代理";
-    }
-    if (hasDatacenter) {
-      return "机房 / 云网络";
-    }
-    if (hasMobile) {
-      return "移动运营商";
-    }
-    if (hasResidential) {
-      return "住宅宽带";
-    }
-    if (hasIsp) {
-      return "运营商网络";
-    }
-    if (rawType) {
-      return "类型待确认";
-    }
-    if (result && result.hostEvidence) {
+    if (result && isHostingIpResult(result)) {
       return "疑似机房 / 云网络";
     }
     return "类型待确认";

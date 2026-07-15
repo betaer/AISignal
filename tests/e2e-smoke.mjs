@@ -566,15 +566,16 @@ const scenarios = [
     },
   },
   {
-    name: "网络类型：显式住宅标签优先于组织名称中的 Hosting / Cloud 启发式",
+    name: "网络类型：跨来源显式住宅标签优先于组织名称中的 Hosting / Cloud / VPN 启发式",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await captureCopiedSummary(page);
       await routeFixtures(page, base.origin, {
         autoStart: false,
-        ipOverrides: {
-          org: "Google Fiber Hosting Cloud",
-          aso: "Google Fiber Hosting Cloud",
-          type: "residential",
+        allowedIpHosts: ["api.ipify.org", "ipwho.is", "api.ip.sb"],
+        ipPayloadByHost: {
+          "ipwho.is": { org: "Google Fiber", type: "residential" },
+          "api.ip.sb": { org: "Google Fiber Hosting Cloud VPN Provider", type: "" },
         },
       });
       await page.goto(base.href);
@@ -597,6 +598,15 @@ const scenarios = [
         "legacy score also respects the explicit residential type",
         ipNode?.status === "green" && !insights.includes("机房 / VPN 出口"),
         `${JSON.stringify(ipNode)}; ${insights.replace(/\s+/g, " ").slice(0, 120)}`,
+      );
+      await page.locator("#copy-ai-report").click();
+      await page.waitForFunction(() => window.__copiedSummary?.startsWith("# AI Signal Guard 网络诊断报告"));
+      const report = await page.evaluate(() => window.__copiedSummary);
+      ok(
+        "AI report keeps the cross-source explicit residential classification",
+        report.includes("- Network Type：Residential（来源标签）") &&
+          !report.includes("疑似机房 / 云网络（组织名称启发式"),
+        report.match(/- Network Type：[^\n]+/)?.[0] || "missing network type",
       );
       await page.close();
     },
@@ -640,6 +650,7 @@ const scenarios = [
     name: "网络类型：协议占位类型不得掩盖组织名称中的机房证据",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await captureCopiedSummary(page);
       await routeFixtures(page, base.origin, {
         autoStart: false,
         ipOverrides: {
@@ -656,6 +667,7 @@ const scenarios = [
       const insights = await page.locator("#score-insights").innerText();
       const networkCard = page.locator(".identity-signal-card").filter({ hasText: "网络类型" });
       const networkText = await networkCard.innerText();
+      const ipCardType = await page.locator('#ip-snapshot-card [data-ip-card-field="network-type"]').innerText();
       ok(
         "protocol-only type keeps the organization hosting risk",
         ipNode?.status === "amber" && insights.includes("机房 / VPN 出口"),
@@ -665,6 +677,63 @@ const scenarios = [
         "identity analysis keeps hosting evidence when the type is only a protocol label",
         (await networkCard.getAttribute("data-status")) === "mismatch" && networkText.includes("检测到机房"),
         networkText,
+      );
+      ok(
+        "IP snapshot card labels protocol-only organization evidence as suspected hosting",
+        ipCardType.trim() === "疑似机房 / 云网络",
+        ipCardType,
+      );
+      await page.locator("#copy-ai-report").click();
+      await page.waitForFunction(() => window.__copiedSummary?.startsWith("# AI Signal Guard 网络诊断报告"));
+      const report = await page.evaluate(() => window.__copiedSummary);
+      ok(
+        "AI report preserves the suspected hosting heuristic behind a protocol placeholder",
+        report.includes("- Network Type：疑似机房 / 云网络（组织名称启发式，非服务商确认）"),
+        report.match(/- Network Type：[^\n]+/)?.[0] || "missing network type",
+      );
+      await page.close();
+    },
+  },
+  {
+    name: "网络类型：Tor 来源标签在评分、身份、名片与 AI 报告中一致判风险",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await captureCopiedSummary(page);
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        ipOverrides: {
+          org: "Example Privacy Network",
+          aso: "Example Privacy Network",
+          type: "Tor Exit",
+        },
+      });
+      await page.goto(base.href);
+      await page.locator('input[value="us_consumer"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page);
+      const ipNode = (await scoreNodeSnapshot(page)).find((node) => node.id === "ip");
+      const insights = await page.locator("#score-insights").innerText();
+      const networkCard = page.locator(".identity-signal-card").filter({ hasText: "网络类型" });
+      const networkText = await networkCard.innerText();
+      const ipCardType = await page.locator('#ip-snapshot-card [data-ip-card-field="network-type"]').innerText();
+      ok("Tor is shown as VPN / proxy on the IP snapshot card", ipCardType.trim() === "VPN / 代理", ipCardType);
+      ok(
+        "Tor contributes the legacy medium-risk IP score",
+        ipNode?.status === "amber" && insights.includes("机房 / VPN 出口"),
+        `${JSON.stringify(ipNode)}; ${insights.replace(/\s+/g, " ").slice(0, 120)}`,
+      );
+      ok(
+        "Tor contributes a network mismatch to residential identity analysis",
+        (await networkCard.getAttribute("data-status")) === "mismatch" && networkText.includes("代理类标签"),
+        networkText,
+      );
+      await page.locator("#copy-ai-report").click();
+      await page.waitForFunction(() => window.__copiedSummary?.startsWith("# AI Signal Guard 网络诊断报告"));
+      const report = await page.evaluate(() => window.__copiedSummary);
+      ok(
+        "AI report retains the explicit Tor source label",
+        report.includes("- Network Type：Tor（来源标签）"),
+        report.match(/- Network Type：[^\n]+/)?.[0] || "missing network type",
       );
       await page.close();
     },
@@ -815,6 +884,74 @@ const scenarios = [
           !hiddenReport.includes(FIXTURE_IPV6) &&
           openedAfterPrivacy === "",
         hiddenReport.slice(0, 600),
+      );
+      await page.close();
+    },
+  },
+  {
+    name: "AI 报告脱敏红队：压缩 IPv6、映射地址与短 mDNS 不得从第三方字段泄漏",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage();
+      await captureCopiedSummary(page);
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        allowedIpHosts: ["api.ipify.org", "ipwho.is", "api.ip.sb", "get.geojs.io"],
+        ipPayloadByHost: {
+          "ipwho.is": {
+            org: "Carrier 2001::dead:beef. fe80::dead:beef%en0 a.local time 12:34:56",
+            type: "residential",
+          },
+          "api.ip.sb": {
+            org: "Transit ::abcd:1234 2001:db8:0:1::abcd 2001:db8:: x1.local",
+            type: "residential",
+          },
+          "get.geojs.io": {
+            org: "Edge [2001:db8::1] ::ffff:192.0.2.128 ::ffff:203.0.113.10 node.lab.local",
+            type: "residential",
+          },
+        },
+      });
+      await page.goto(base.href);
+      await page.locator("#identity-generic").click();
+      await waitForScore(page);
+      await page.locator("#copy-ai-report").click();
+      await page.waitForFunction(() => window.__copiedSummary?.startsWith("# AI Signal Guard 网络诊断报告"));
+      const report = await page.evaluate(() => window.__copiedSummary);
+      const rawSecrets = [
+        "2001::dead:beef",
+        "fe80::dead:beef%en0",
+        "::abcd:1234",
+        "2001:db8:0:1::abcd",
+        "2001:db8::",
+        "[2001:db8::1]",
+        "::ffff:192.0.2.128",
+        "::ffff:192.0.2.x",
+        "::ffff:203.0.113.10",
+        "::ffff:203.0.113.x",
+        "a.local",
+        "x1.local",
+        "node.lab.local",
+      ];
+      ok(
+        "all raw IPv6 and mDNS variants are removed from organization evidence",
+        rawSecrets.every((secret) => !report.includes(secret)),
+        rawSecrets.filter((secret) => report.includes(secret)).join(" / ") || "all removed",
+      );
+      ok(
+        "IPv4-mapped IPv6 is normalized to the IPv6 masking format",
+        report.includes("0:0:0:xxxx:xxxx:xxxx:xxxx:xxxx") && !report.includes("192.0.2.x"),
+        report.match(/(?:0:0:0|::ffff)[^\s`，]*/)?.[0] || "mapped mask missing",
+      );
+      ok(
+        "brackets and sentence punctuation survive around masked IPv6 values",
+        /[\[［]2001:db8:0:xxxx:xxxx:xxxx:xxxx:xxxx[\]］]/.test(report) &&
+          report.includes("2001:0:0:xxxx:xxxx:xxxx:xxxx:xxxx."),
+        report.match(/(?:\[2001:db8:0|2001:0:0)[^\s`]*/g)?.join(" / ") || "masked punctuation missing",
+      );
+      ok(
+        "short and multi-label mDNS names are replaced while a clock value is preserved",
+        (report.match(/xxxx\.local/g) || []).length >= 3 && report.includes("12:34:56"),
+        `mdns=${(report.match(/xxxx\.local/g) || []).length}; time=${report.includes("12:34:56")}`,
       );
       await page.close();
     },
