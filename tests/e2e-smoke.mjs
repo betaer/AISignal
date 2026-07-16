@@ -150,8 +150,8 @@ const REPORT_WEBRTC_INIT = `
  * opts.countryIsTargetOnly: country.is 自查请求失败，只响应显式地址回填请求。
  * opts.ipwhoTargetOnly: ipwho.is 自查请求失败，只响应显式地址回填请求。
  * opts.*TargetResponse: 为显式地址请求伪造响应，用于验证目标 IP 完整性。
- * opts.hangOpenaiStatus: status.openai.com 挂 9 秒后 abort（fallback 竞态用例）。
  * opts.blockedServiceHosts: 让指定服务探针失败，用于验证待确认身份信号。
+ * opts.errorServiceHosts: 让指定 CORS 服务探针返回 HTTP 503，用于验证状态码处理。
  */
 async function routeFixtures(target, baseOrigin, opts = {}) {
   const flags = opts.flags || {};
@@ -173,6 +173,9 @@ async function routeFixtures(target, baseOrigin, opts = {}) {
     const host = url.hostname;
     if ((opts.blockedServiceHosts || []).includes(host)) {
       return route.abort().catch(() => {});
+    }
+    if ((opts.errorServiceHosts || []).includes(host)) {
+      return route.fulfill({ status: 503, contentType: "text/plain", body: "unavailable" }).catch(() => {});
     }
     const json = (body, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }).catch(() => {});
@@ -286,10 +289,6 @@ async function routeFixtures(target, baseOrigin, opts = {}) {
         `fl=1\nip=${trace.ip || FIXTURE_IPV4}\nloc=${trace.loc || "US"}\ncolo=${trace.colo || "SJC"}\nwarp=${trace.warp || "off"}\n`,
       );
     }
-    if (host === "status.openai.com" && opts.hangOpenaiStatus) {
-      await sleep(9000);
-      return route.abort().catch(() => {});
-    }
     if (url.pathname.includes("/api/v2/status.json") && opts.failAiStatus) {
       return route.fulfill({ status: 503, contentType: "application/json", body: "{}" }).catch(() => {});
     }
@@ -400,6 +399,19 @@ const scenarios = [
         (await page.locator('label[for="identity-us-consumer"]:visible').count()) === 0,
         `visible-us-cards=${await page.locator('label[for="identity-us-consumer"]:visible').count()}`,
       );
+      const hiddenUsFocusState = await page.locator('input[value="us_consumer"]').evaluate((radio) => {
+        radio.focus();
+        return {
+          hasHiddenAncestor: Boolean(radio.closest("[hidden]")),
+          rectCount: radio.getClientRects().length,
+          receivedFocus: document.activeElement === radio,
+        };
+      });
+      ok(
+        "the hidden US consumer entry cannot receive focus or enter the keyboard flow",
+        hiddenUsFocusState.hasHiddenAncestor && hiddenUsFocusState.rectCount === 0 && !hiddenUsFocusState.receivedFocus,
+        JSON.stringify(hiddenUsFocusState),
+      );
       ok(
         "desktop identity cards form one row with three columns",
         desktopLayout.columns === 3 && desktopLayout.rows === 1,
@@ -509,19 +521,41 @@ const scenarios = [
     },
   },
   {
+    name: "AI 用户：核心产品可达时生成正式分数，开发工具继续作为补充探测",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await routeFixtures(page, base.origin, { autoStart: false });
+      await page.goto(base.href);
+      await page.locator('input[value="ai_worker"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page);
+      await page.waitForFunction(() => /^\d+$/.test(document.querySelector("#identity-match-score")?.textContent.trim()));
+      const resultText = await page.locator("#identity-result-root").innerText();
+      const connectivityText = await page.locator("#sec-conn").innerText();
+      ok(
+        "AI core product probes can produce a formal identity score",
+        /Identity Match Score/i.test(resultText) && /^\d+$/.test(await page.locator("#identity-match-score").innerText()),
+        resultText.slice(0, 180),
+      );
+      ok(
+        "supplemental AI tools remain visible in connectivity diagnostics",
+        ["Cursor", "GitHub", "npm Registry", "PyPI"].every((label) => connectivityText.includes(label)),
+        connectivityText.slice(0, 400),
+      );
+      await page.close();
+    },
+  },
+  {
     name: "身份解释：仅在确有待确认信号时显示尚未确认区域",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
       await routeFixtures(page, base.origin, {
         autoStart: false,
         blockedServiceHosts: [
-          "status.openai.com",
           "chatgpt.com",
           "openai.com",
           "claude.ai",
-          "www.gstatic.com",
           "gemini.google.com",
-          "www.cursor.com",
           "www.perplexity.ai",
         ],
       });
@@ -546,6 +580,13 @@ const scenarios = [
       );
       const resultText = await page.locator("#identity-result-root").innerText();
       ok("AI result uses the broader audience name", resultText.includes("AI 用户"), resultText.slice(0, 180));
+      const connectivityText = await page.locator("#sec-conn").innerText();
+      ok(
+        "successful status and supplemental tool probes cannot replace failed core AI products",
+        ["Cursor", "GitHub", "npm Registry", "PyPI"].every((label) => connectivityText.includes(label)) &&
+          (await page.locator("#identity-match-score").innerText()).trim() === "··",
+        connectivityText.slice(0, 400),
+      );
       ok(
         "pending evidence panel spans the full comparison width",
         pendingState.columnStart === "1" && pendingState.columnEnd === "-1",
@@ -2948,30 +2989,32 @@ const scenarios = [
     },
   },
   {
-    name: "探针 fallback：主请求超时 abort 后的迟到失败不覆盖 fallback 成功",
+    name: "服务探针：CORS HTTP 503 不得标记为可达",
     async run({ browser, base, ok }) {
-      const ctx = await browser.newContext();
-      await routeFixtures(ctx, base.origin, { hangOpenaiStatus: true });
-      const page = await ctx.newPage();
+      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        errorServiceHosts: ["registry.npmjs.org"],
+      });
       await page.goto(base.href);
-      const pass = await page
-        .waitForFunction(
-          () => {
-            const card = Array.from(document.querySelectorAll(".conn-card")).find((c) =>
-              c.textContent.includes("openai.com"),
-            );
-            return card && card.textContent.includes("可达");
-          },
-          null,
-          { timeout: 30000 },
-        )
-        .then(() => true)
-        .catch(() => false);
-      const cardText = pass
-        ? ""
-        : (await page.locator(".conn-card").allInnerTexts()).find((c) => c.includes("openai")) || "card missing";
-      ok("openai.com resolves via fallback", pass, cardText);
-      await ctx.close();
+      await page.locator('input[value="ai_worker"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page);
+      const npmCard = page.locator(".conn-card").filter({ hasText: "npm Registry" });
+      await npmCard.waitFor();
+      await page.waitForFunction(() => {
+        const card = Array.from(document.querySelectorAll(".conn-card")).find((node) =>
+          node.textContent.includes("npm Registry"),
+        );
+        return card && !card.textContent.includes("检测中");
+      });
+      const cardText = await npmCard.innerText();
+      ok(
+        "a failed CORS response stays unconfirmed instead of becoming reachable",
+        !cardText.includes("可达") && /浏览器受限|未确认/.test(cardText),
+        cardText,
+      );
+      await page.close();
     },
   },
   {

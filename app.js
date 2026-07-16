@@ -166,17 +166,14 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         {
           serviceId: "openai",
           host: "openai.com",
-          probeUrl: "https://status.openai.com/api/v2/status.json",
-          fallbackUrl: "https://openai.com/favicon.ico",
-          mode: "cors",
+          probeUrl: "https://openai.com/favicon.ico",
           softFail: true,
           failStatus: "浏览器受限"
         },
         {
           serviceId: "gemini",
           host: "gemini.google.com",
-          probeUrl: "https://www.gstatic.com/generate_204",
-          fallbackUrl: "https://gemini.google.com/favicon.ico",
+          probeUrl: "https://gemini.google.com/favicon.ico",
           softFail: true,
           failStatus: "浏览器受限"
         }
@@ -281,9 +278,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       serviceId: "openai",
       label: "OpenAI",
       host: "openai.com",
-      probeUrl: "https://status.openai.com/api/v2/status.json",
-      fallbackUrl: "https://openai.com/favicon.ico",
-      mode: "cors"
+      probeUrl: "https://openai.com/favicon.ico"
     },
     claude: {
       serviceId: "claude",
@@ -295,8 +290,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       serviceId: "gemini",
       label: "Gemini",
       host: "gemini.google.com",
-      probeUrl: "https://www.gstatic.com/generate_204",
-      fallbackUrl: "https://gemini.google.com/favicon.ico"
+      probeUrl: "https://gemini.google.com/favicon.ico"
     },
     cursor: {
       serviceId: "cursor",
@@ -3426,8 +3420,9 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         referrerPolicy: "no-referrer",
         signal: signal
       })
-        .then(function () {
-          return true;
+        .then(function (response) {
+          // no-cors 响应是 opaque，无法读取 HTTP 状态；CORS 探针则必须确认 2xx。
+          return (mode || "no-cors") === "cors" ? response.ok : true;
         })
         .catch(function () {
           return false;
