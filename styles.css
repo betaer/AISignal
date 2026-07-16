@@ -434,7 +434,7 @@ body[data-app-stage="result"] .analysis-progress {
 .identity-card-grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -3787,6 +3787,10 @@ body[data-app-stage="result"] .analysis-progress {
     max-width: 760px;
     margin-right: auto;
     margin-left: auto;
+  }
+
+  .identity-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .signal-grid,

@@ -23,14 +23,14 @@
     <meta name="twitter:image" content="https://betaer.github.io/AiSignalGuard/assets/og.png">
     <meta name="twitter:image:alt" content="AI Signal Guard 数字身份匹配分析">
     <link rel="icon" href="favicon.svg?v=20260708-3" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.min.css?v=20260716-4">
+    <link rel="stylesheet" href="styles.min.css?v=20260717-1">
     <script>
       window.dataLayer = window.dataLayer || [];
       window.gtag = window.gtag || function () {
         window.dataLayer.push(arguments);
       };
     </script>
-    <script vite-ignore src="app.min.js?v=20260716-4" defer></script>
+    <script vite-ignore src="app.min.js?v=20260717-1" defer></script>
   </head>
   <body data-app-stage="select">
     <a class="skip-link" href="#main">跳到主要内容</a>
@@ -129,27 +129,27 @@
           <fieldset class="identity-fieldset">
             <legend class="visually-hidden">选择目标数字身份画像</legend>
             <div class="identity-card-grid">
-              <label class="identity-card" for="identity-us-consumer">
+              <label class="identity-card" for="identity-ai-worker">
                 <input
                   class="identity-radio"
-                  id="identity-us-consumer"
+                  id="identity-ai-worker"
                   name="identity-profile"
                   type="radio"
-                  value="us_consumer"
-                  data-profile-id="us_consumer"
+                  value="ai_worker"
+                  data-profile-id="ai_worker"
                 >
                 <span class="identity-card-heading">
-                  <span class="identity-card-icon" aria-hidden="true">🇺🇸</span>
-                  <span class="identity-card-name">美国普通用户</span>
+                  <span class="identity-card-icon" aria-hidden="true">🤖</span>
+                  <span class="identity-card-name">AI 用户</span>
                 </span>
-                <span class="identity-card-description">像一个真实的美国本地消费环境</span>
+                <span class="identity-card-description">面向国际 AI 服务的常见使用环境</span>
                 <span class="identity-card-focus">重点分析</span>
                 <span class="identity-tag-list" aria-label="重点分析信号">
-                  <span class="identity-tag">IP 所在地</span>
-                  <span class="identity-tag">住宅网络</span>
-                  <span class="identity-tag">时区与语言</span>
+                  <span class="identity-tag">AI 服务路径</span>
+                  <span class="identity-tag">ChatGPT / Claude</span>
+                  <span class="identity-tag">Gemini / Perplexity</span>
+                  <span class="identity-tag">网络信誉</span>
                   <span class="identity-tag">DNS / WebRTC</span>
-                  <span class="identity-tag">消费服务</span>
                 </span>
               </label>
 
@@ -164,15 +164,15 @@
                 >
                 <span class="identity-card-heading">
                   <span class="identity-card-icon" aria-hidden="true">🎬</span>
-                  <span class="identity-card-name">TikTok 创作者</span>
+                  <span class="identity-card-name">自媒体创作者</span>
                 </span>
-                <span class="identity-card-description">像一个使用美国环境的内容创作者</span>
+                <span class="identity-card-description">面向美国市场的内容创作与社交平台环境</span>
                 <span class="identity-card-focus">重点分析</span>
                 <span class="identity-tag-list" aria-label="重点分析信号">
-                  <span class="identity-tag">网络类型</span>
-                  <span class="identity-tag">TikTok</span>
-                  <span class="identity-tag">Instagram</span>
+                  <span class="identity-tag">网络与信誉</span>
+                  <span class="identity-tag">TikTok / Instagram</span>
                   <span class="identity-tag">YouTube</span>
+                  <span class="identity-tag">广告平台信号</span>
                   <span class="identity-tag">地理一致性</span>
                 </span>
               </label>
@@ -188,38 +188,40 @@
                 >
                 <span class="identity-card-heading">
                   <span class="identity-card-icon" aria-hidden="true">🛒</span>
-                  <span class="identity-card-name">跨境卖家</span>
+                  <span class="identity-card-name">跨境商家</span>
                 </span>
-                <span class="identity-card-description">像一个使用美国商业环境的跨境经营者</span>
+                <span class="identity-card-description">面向美国市场的跨境经营与商业服务环境</span>
                 <span class="identity-card-focus">重点分析</span>
                 <span class="identity-tag-list" aria-label="重点分析信号">
                   <span class="identity-tag">IP 信誉</span>
-                  <span class="identity-tag">商业服务</span>
+                  <span class="identity-tag">Shopify / Amazon</span>
+                  <span class="identity-tag">PayPal / Stripe</span>
                   <span class="identity-tag">浏览器环境</span>
                   <span class="identity-tag">位置一致性</span>
                 </span>
               </label>
 
-              <label class="identity-card" for="identity-ai-worker">
+              <label class="identity-card" for="identity-us-consumer" hidden>
                 <input
                   class="identity-radio"
-                  id="identity-ai-worker"
+                  id="identity-us-consumer"
                   name="identity-profile"
                   type="radio"
-                  value="ai_worker"
-                  data-profile-id="ai_worker"
+                  value="us_consumer"
+                  data-profile-id="us_consumer"
                 >
                 <span class="identity-card-heading">
-                  <span class="identity-card-icon" aria-hidden="true">🤖</span>
-                  <span class="identity-card-name">AI Worker</span>
+                  <span class="identity-card-icon" aria-hidden="true">🇺🇸</span>
+                  <span class="identity-card-name">美国普通用户</span>
                 </span>
-                <span class="identity-card-description">像一个具备国际开发环境的 AI 工作者</span>
+                <span class="identity-card-description">面向美国本地消费者的常见使用环境</span>
                 <span class="identity-card-focus">重点分析</span>
                 <span class="identity-tag-list" aria-label="重点分析信号">
-                  <span class="identity-tag">OpenAI / Claude</span>
-                  <span class="identity-tag">Gemini</span>
-                  <span class="identity-tag">GitHub</span>
-                  <span class="identity-tag">Package Registry</span>
+                  <span class="identity-tag">IP 所在地</span>
+                  <span class="identity-tag">住宅网络</span>
+                  <span class="identity-tag">时区与语言</span>
+                  <span class="identity-tag">DNS / WebRTC</span>
+                  <span class="identity-tag">消费服务</span>
                 </span>
               </label>
 

@@ -15,9 +15,9 @@
 ### AI 用户
 
 - 卡片描述：面向国际 AI 服务的常见使用环境。
-- 重点信号：AI 服务路径、OpenAI / Claude、Gemini / Perplexity、网络信誉、DNS / WebRTC。
+- 重点信号：AI 服务路径、ChatGPT / Claude、Gemini / Perplexity、网络信誉、DNS / WebRTC。
 - 结果页目标名称：国际 AI 服务用户。
-- 评分不再要求 GitHub、npm、PyPI 等开发者生态证据。开发者相关检测能力仍保留在产品的网络检测模块中。
+- 评分以 ChatGPT、OpenAI、Claude、Gemini、Perplexity 为核心，不再要求 Cursor、GitHub、npm、PyPI 等工具或开发者生态证据。相关检测能力仍保留在产品的网络检测模块中。
 
 ### 自媒体创作者
 

@@ -39,7 +39,7 @@ function matchAll(profile, confidence = 1) {
   );
 }
 
-test("提供 5 个完整且唯一的身份画像（通用画像 + 4 个可选画像）", () => {
+test("提供 5 个完整且唯一的身份画像（通用画像 + 4 个兼容画像）", () => {
   assert.deepEqual(
     IDENTITY_PROFILE_LIST.map((profile) => profile.id),
     EXPECTED_PROFILE_IDS,
@@ -74,10 +74,11 @@ test("提供 5 个完整且唯一的身份画像（通用画像 + 4 个可选画
       assert.ok(group.serviceIds.length > 0);
       assert.ok(group.serviceIds.every((serviceId) => profile.serviceIds.includes(serviceId)));
     }
-    assert.deepEqual(
-      [...new Set(profile.serviceGroups.flatMap((group) => group.serviceIds))].sort(),
-      [...profile.serviceIds].sort(),
-      `${profile.id} 的扁平服务清单与分组清单必须一致`,
+    assert.ok(
+      profile.serviceGroups
+        .flatMap((group) => group.serviceIds)
+        .every((serviceId) => profile.serviceIds.includes(serviceId)),
+      `${profile.id} 的评分服务必须属于完整探测清单`,
     );
     for (const signalGroup of profile.scoreReadiness.requiredSignalGroups) {
       assert.ok(signalGroup.length > 0);
@@ -123,8 +124,7 @@ test("画像精确声明需求中的服务及其评分分组", () => {
     },
     cross_border_seller: { commerce_services: ["shopify", "amazon", "paypal", "stripe"] },
     ai_worker: {
-      ai_services: ["openai", "claude", "gemini", "cursor", "perplexity"],
-      developer_services: ["github", "npm", "pypi"],
+      ai_services: ["chatgpt", "openai", "claude", "gemini", "perplexity"],
     },
   };
 
@@ -134,6 +134,47 @@ test("画像精确声明需求中的服务及其评分分组", () => {
       groups,
     );
   }
+});
+
+test("面向用户的画像名称覆盖更广泛的使用场景", () => {
+  assert.equal(getIdentityProfile("ai_worker").name, "AI 用户");
+  assert.equal(getIdentityProfile("tiktok_creator").name, "自媒体创作者");
+  assert.equal(getIdentityProfile("cross_border_seller").name, "跨境商家");
+
+  const aiProfileCopy = JSON.stringify(getIdentityProfile("ai_worker"));
+  assert.doesNotMatch(aiProfileCopy, /AI Worker|AI 工作者|AI 开发者|开发者生态/);
+});
+
+test("AI 用户画像只以 AI 服务作为评分核心，开发者工具仅作补充探测", () => {
+  const profile = getIdentityProfile("ai_worker");
+  const checkIds = profile.checks.map((check) => check.id);
+
+  assert.deepEqual(profile.serviceGroups, [
+    {
+      checkId: "ai_services",
+      serviceIds: ["chatgpt", "openai", "claude", "gemini", "perplexity"],
+    },
+  ]);
+  assert.deepEqual(profile.serviceIds, [
+    "chatgpt",
+    "openai",
+    "claude",
+    "gemini",
+    "perplexity",
+    "cursor",
+    "github",
+    "npm",
+    "pypi",
+  ]);
+  assert.equal(checkIds.includes("developer_services"), false);
+  assert.equal(Object.hasOwn(profile.weights, "developer_services"), false);
+  assert.equal(profile.weights.ai_services, 50);
+  assert.deepEqual(profile.scoreReadiness.requiredSignalGroups, [
+    ["ai_services"],
+    ["reputation", "network"],
+    ["dns", "webrtc", "browser", "location"],
+  ]);
+  assert.equal(profile.scoreReadiness.minCoverage, 40);
 });
 
 test("\u5b8c\u5168\u5339\u914d\u65f6\u8fd4\u56de 100 \u5206\u3001100% \u8986\u76d6\u7387\u548c\u6309\u5f71\u54cd\u6392\u5e8f\u7684\u6b63\u5411\u7406\u7531", () => {
@@ -169,19 +210,19 @@ test("\u672a\u77e5\u4fe1\u53f7\u56de\u5f52\u4e2d\u6027\u4f46\u4e0d\u8f93\u51fa\u
   assert.match(result.summary, /\u8bc1\u636e|\u4fe1\u53f7|\u5f85\u786e\u8ba4/);
 });
 
-test("AI Worker \u7f3a\u5c11 AI \u4e0e\u5f00\u53d1\u8005\u670d\u52a1\u6838\u5fc3\u8bc1\u636e\u65f6\u4e0d\u63d0\u524d\u8f93\u51fa\u6b63\u5f0f\u5206", () => {
+test("AI 用户缺少 AI 服务核心证据时不提前输出正式分数", () => {
   const profile = getIdentityProfile("ai_worker");
   const signals = Object.fromEntries(profile.checks.map((check) => [check.id, { status: "unknown" }]));
-  for (const signalId of ["location", "network", "reputation", "browser"]) {
+  for (const signalId of profile.checks.map((check) => check.id).filter((id) => id !== "ai_services")) {
     signals[signalId] = { status: "match", confidence: 1, evidence: `${signalId} \u5df2\u786e\u8ba4` };
   }
 
   const result = analyzeIdentity(profile.id, signals);
 
-  assert.equal(result.coverage, 30);
+  assert.equal(result.coverage, 50);
   assert.equal(result.readiness.coverageReady, true);
   assert.equal(result.readiness.coreSignalsReady, false);
-  assert.deepEqual(result.readiness.missingSignalGroups, [["ai_services", "developer_services"]]);
+  assert.deepEqual(result.readiness.missingSignalGroups, [["ai_services"]]);
   assert.equal(result.isScoreReady, false);
   assert.equal(result.score, null);
   assert.equal(result.band, IDENTITY_PENDING_BAND);
@@ -221,11 +262,11 @@ test("\u76f8\u540c\u4fe1\u53f7\u5728\u4e0d\u540c\u76ee\u6807\u753b\u50cf\u4e0b\u
   const aiResult = analyzeIdentity("ai_worker", aiSignals);
 
   assert.equal(genericProfile.weights.services, 5);
-  assert.equal(aiProfile.weights.ai_services, 35);
+  assert.equal(aiProfile.weights.ai_services, 50);
   assert.equal(genericResult.isScoreReady, true);
   assert.equal(aiResult.isScoreReady, true);
   assert.equal(genericResult.score, 57);
-  assert.equal(aiResult.score, 70);
+  assert.equal(aiResult.score, 78);
   assert.ok(aiResult.score > genericResult.score);
 });
 

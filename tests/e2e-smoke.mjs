@@ -342,15 +342,23 @@ const scenarios = [
   {
     name: "数字身份入口：首次不检测，选择画像后才开始并生成解释结果",
     async run({ browser, base, ok }) {
-      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      const page = await browser.newPage({
+        locale: "en-US",
+        timezoneId: "America/Los_Angeles",
+        viewport: { width: 1280, height: 900 },
+      });
       const requests = [];
       page.on("request", (request) => requests.push(request.url()));
       await routeFixtures(page, base.origin, { autoStart: false });
       await page.goto(base.href);
       await page.waitForSelector("#identity-entry");
 
-      const cardCount = await page.locator('input[name="identity-profile"]').count();
-      const cardLayout = await page.locator(".identity-card").evaluateAll((cards) => {
+      const visibleCards = page.locator(".identity-card:visible");
+      const visibleProfileIds = await visibleCards.locator('input[name="identity-profile"]').evaluateAll((inputs) =>
+        inputs.map((input) => input.value),
+      );
+      const visibleProfileNames = await visibleCards.locator(".identity-card-name").allInnerTexts();
+      const identityLayout = () => visibleCards.evaluateAll((cards) => {
         const rects = cards.map((card) => card.getBoundingClientRect());
         const positions = (values) => new Set(values.map((value) => Math.round(value))).size;
         return {
@@ -358,6 +366,12 @@ const scenarios = [
           rows: positions(rects.map((rect) => rect.top)),
         };
       });
+      const desktopLayout = await identityLayout();
+      await page.setViewportSize({ width: 900, height: 900 });
+      const tabletLayout = await identityLayout();
+      await page.setViewportSize({ width: 620, height: 900 });
+      const mobileLayout = await identityLayout();
+      await page.setViewportSize({ width: 1280, height: 900 });
       const startDisabled = await page.locator("#identity-start").isDisabled();
       const workspaceHidden = await page.locator("#analysis-workspace").evaluate((node) => node.hidden);
       await sleep(250);
@@ -371,17 +385,41 @@ const scenarios = [
           requestUrl.includes("generate_204")
         );
       });
-      ok("renders exactly four target identity cards", cardCount === 4, `cards=${cardCount}`);
       ok(
-        "desktop identity cards form a balanced 2 by 2 grid",
-        cardLayout.columns === 2 && cardLayout.rows === 2,
-        JSON.stringify(cardLayout),
+        "renders exactly three visible target identity cards in the requested order",
+        visibleProfileIds.join(",") === "ai_worker,tiktok_creator,cross_border_seller",
+        visibleProfileIds.join(","),
+      );
+      ok(
+        "visible identity cards use the broader audience names",
+        visibleProfileNames.join(",") === "AI 用户,自媒体创作者,跨境商家",
+        visibleProfileNames.join(","),
+      );
+      ok(
+        "the US consumer profile remains available internally but its entry card is hidden",
+        (await page.locator('label[for="identity-us-consumer"]:visible').count()) === 0,
+        `visible-us-cards=${await page.locator('label[for="identity-us-consumer"]:visible').count()}`,
+      );
+      ok(
+        "desktop identity cards form one row with three columns",
+        desktopLayout.columns === 3 && desktopLayout.rows === 1,
+        JSON.stringify(desktopLayout),
+      );
+      ok(
+        "identity cards collapse to two columns at 900px",
+        tabletLayout.columns === 2 && tabletLayout.rows === 2,
+        JSON.stringify(tabletLayout),
+      );
+      ok(
+        "identity cards collapse to one column at 620px",
+        mobileLayout.columns === 1 && mobileLayout.rows === 3,
+        JSON.stringify(mobileLayout),
       );
       ok("start button waits for a selection", startDisabled, String(startDisabled));
       ok("detailed workspace is hidden before consent", workspaceHidden, String(workspaceHidden));
       ok("no detection request runs before selection", detectionBeforeStart.length === 0, detectionBeforeStart.join(", "));
 
-      const keyboardFocusRing = await page.locator('input[value="us_consumer"]').evaluate((radio) => {
+      const keyboardFocusRing = await page.locator('input[value="ai_worker"]').evaluate((radio) => {
         radio.focus();
         const style = getComputedStyle(radio);
         return {
@@ -420,7 +458,7 @@ const scenarios = [
           (selectedCardStyle.outlineWidth === "0px" || selectedCardStyle.outlineStyle === "none"),
         JSON.stringify(selectedCardStyle),
       );
-      ok("selection enables start", !(await page.locator("#identity-start").isDisabled()), "TikTok creator selected");
+      ok("selection enables start", !(await page.locator("#identity-start").isDisabled()), "creator profile selected");
       await page.locator("#identity-start").click();
       await waitForScore(page);
       await page.waitForSelector("#identity-result-root .identity-summary-card");
@@ -434,7 +472,7 @@ const scenarios = [
           lastCardColumnEnd: getComputedStyle(grid.querySelector(".identity-signal-card:last-child")).gridColumnEnd,
         };
       });
-      ok("result keeps the selected target", resultText.includes("TikTok 创作者"), resultText.slice(0, 180));
+      ok("result keeps the selected target", resultText.includes("自媒体创作者"), resultText.slice(0, 180));
       ok("result exposes the identity score", /Identity Match Score/i.test(resultText), resultText.slice(0, 180));
       ok("result explains positive evidence", resultText.includes("为什么像"), resultText.slice(0, 240));
       ok("result explains differences", resultText.includes("为什么不像"), resultText.slice(0, 240));
@@ -456,6 +494,21 @@ const scenarios = [
     },
   },
   {
+    name: "身份名称：跨境商家名称贯穿入口与分析结果",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await routeFixtures(page, base.origin, { autoStart: false });
+      await page.goto(base.href);
+      await page.locator('input[value="cross_border_seller"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page);
+      await page.waitForSelector("#identity-result-root .identity-summary-card");
+      const resultText = await page.locator("#identity-result-root").innerText();
+      ok("cross-border result uses the broader merchant name", resultText.includes("跨境商家"), resultText.slice(0, 180));
+      await page.close();
+    },
+  },
+  {
     name: "身份解释：仅在确有待确认信号时显示尚未确认区域",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
@@ -463,15 +516,13 @@ const scenarios = [
         autoStart: false,
         blockedServiceHosts: [
           "status.openai.com",
+          "chatgpt.com",
           "openai.com",
           "claude.ai",
           "www.gstatic.com",
           "gemini.google.com",
           "www.cursor.com",
           "www.perplexity.ai",
-          "github.com",
-          "registry.npmjs.org",
-          "pypi.org",
         ],
       });
       await page.goto(base.href);
@@ -490,9 +541,11 @@ const scenarios = [
       });
       ok(
         "pending evidence panel appears when service evidence is genuinely unavailable",
-        pendingState.text.includes("尚未确认") && /AI 服务|开发者生态/.test(pendingState.text),
+        pendingState.text.includes("尚未确认") && /AI.*服务/.test(pendingState.text) && !pendingState.text.includes("开发者生态"),
         pendingState.text,
       );
+      const resultText = await page.locator("#identity-result-root").innerText();
+      ok("AI result uses the broader audience name", resultText.includes("AI 用户"), resultText.slice(0, 180));
       ok(
         "pending evidence panel spans the full comparison width",
         pendingState.columnStart === "1" && pendingState.columnEnd === "-1",
@@ -579,10 +632,10 @@ const scenarios = [
         },
       });
       await page.goto(base.href);
-      await page.locator('input[value="us_consumer"]').check();
+      await page.locator('input[value="tiktok_creator"]').check();
       await page.locator("#identity-start").click();
       await waitForScore(page);
-      const networkCard = page.locator(".identity-signal-card").filter({ hasText: "网络类型" });
+      const networkCard = page.locator('.identity-signal-card[data-signal-id="network"]');
       ok("explicit residential evidence is not mislabeled as datacenter", (await networkCard.getAttribute("data-status")) === "match", await networkCard.innerText());
       ok("network evidence keeps the provider name", (await networkCard.innerText()).includes("Google Fiber"), await networkCard.innerText());
       const ipCardType = await page.locator('#ip-snapshot-card [data-ip-card-field="network-type"]').innerText();
@@ -624,13 +677,13 @@ const scenarios = [
         },
       });
       await page.goto(base.href);
-      await page.locator('input[value="us_consumer"]').check();
+      await page.locator('input[value="tiktok_creator"]').check();
       await page.locator("#identity-start").click();
       await waitForScore(page);
       const ipCardType = await page.locator('#ip-snapshot-card [data-ip-card-field="network-type"]').innerText();
       const ipNode = (await scoreNodeSnapshot(page)).find((node) => node.id === "ip");
       const insights = await page.locator("#score-insights").innerText();
-      const networkCard = page.locator(".identity-signal-card").filter({ hasText: "网络类型" });
+      const networkCard = page.locator('.identity-signal-card[data-signal-id="network"]');
       const networkText = await networkCard.innerText();
       ok("IP snapshot card keeps the explicit mobile type", ipCardType.trim() === "移动运营商", ipCardType);
       ok(
@@ -660,12 +713,12 @@ const scenarios = [
         },
       });
       await page.goto(base.href);
-      await page.locator('input[value="us_consumer"]').check();
+      await page.locator('input[value="tiktok_creator"]').check();
       await page.locator("#identity-start").click();
       await waitForScore(page);
       const ipNode = (await scoreNodeSnapshot(page)).find((node) => node.id === "ip");
       const insights = await page.locator("#score-insights").innerText();
-      const networkCard = page.locator(".identity-signal-card").filter({ hasText: "网络类型" });
+      const networkCard = page.locator('.identity-signal-card[data-signal-id="network"]');
       const networkText = await networkCard.innerText();
       const ipCardType = await page.locator('#ip-snapshot-card [data-ip-card-field="network-type"]').innerText();
       ok(
@@ -708,12 +761,12 @@ const scenarios = [
         },
       });
       await page.goto(base.href);
-      await page.locator('input[value="us_consumer"]').check();
+      await page.locator('input[value="tiktok_creator"]').check();
       await page.locator("#identity-start").click();
       await waitForScore(page);
       const ipNode = (await scoreNodeSnapshot(page)).find((node) => node.id === "ip");
       const insights = await page.locator("#score-insights").innerText();
-      const networkCard = page.locator(".identity-signal-card").filter({ hasText: "网络类型" });
+      const networkCard = page.locator('.identity-signal-card[data-signal-id="network"]');
       const networkText = await networkCard.innerText();
       const ipCardType = await page.locator('#ip-snapshot-card [data-ip-card-field="network-type"]').innerText();
       ok("Tor is shown as VPN / proxy on the IP snapshot card", ipCardType.trim() === "VPN / 代理", ipCardType);
@@ -814,7 +867,7 @@ const scenarios = [
       });
       const refreshed = requests.slice(requestStart);
       const reranCoreIp = refreshed.some((requestUrl) => IP_INTEL_HOSTS.includes(new URL(requestUrl).hostname));
-      const refreshedAiServices = refreshed.some((requestUrl) => /cursor|perplexity|github|npmjs|pypi/.test(requestUrl));
+      const refreshedAiServices = refreshed.some((requestUrl) => /openai|chatgpt|claude|gemini|perplexity/.test(requestUrl));
       ok("reselection returns to the result workspace after a clean run", await page.locator("#analysis-progress").isHidden(), "progress stage should be hidden after completion");
       ok(
         "reselection resets the first navigation item to the new identity result",

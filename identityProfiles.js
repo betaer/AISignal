@@ -264,12 +264,12 @@ const profiles = [
   },
   {
     id: "tiktok_creator",
-    name: "TikTok 创作者",
+    name: "自媒体创作者",
     icon: "🎬",
-    description: "分析数字环境与美国内容创作者常见使用环境的匹配程度。",
+    description: "分析数字环境与面向美国市场的自媒体创作者常见环境的匹配程度。",
     target: {
-      label: "美国内容创作者",
-      summarySubject: "美国内容创作者画像",
+      label: "面向美国市场的自媒体创作者",
+      summarySubject: "面向美国市场的自媒体创作者画像",
       geography: { mode: "country", countryCodes: ["US"], label: "美国" },
       languageTags: ["en-US", "en"],
       timezonePrefixes: [
@@ -327,12 +327,12 @@ const profiles = [
   },
   {
     id: "cross_border_seller",
-    name: "跨境卖家",
+    name: "跨境商家",
     icon: "🛒",
-    description: "分析数字环境与美国商业用户常见使用环境的匹配程度。",
+    description: "分析数字环境与面向美国市场的跨境商家常见环境的匹配程度。",
     target: {
-      label: "美国商业用户",
-      summarySubject: "美国商业用户画像",
+      label: "面向美国市场的跨境商家",
+      summarySubject: "面向美国市场的跨境商家画像",
       geography: { mode: "country", countryCodes: ["US"], label: "美国" },
       languageTags: ["en-US", "en"],
       timezonePrefixes: [
@@ -385,23 +385,23 @@ const profiles = [
     criticalRules: [strictUsLocationRule()],
   },
   {
+    // 保留既有内部 ID，避免历史报告和外部引用发生无意义迁移。
     id: "ai_worker",
-    name: "AI Worker",
+    name: "AI 用户",
     icon: "🤖",
-    description: "分析数字环境与国际 AI 开发者常见工作环境的匹配程度。",
+    description: "分析数字环境与国际 AI 服务用户常见使用环境的匹配程度。",
     target: {
-      label: "国际 AI 开发者",
-      summarySubject: "国际 AI 开发者画像",
+      label: "国际 AI 服务用户",
+      summarySubject: "国际 AI 服务用户画像",
       geography: { mode: "any", countryCodes: [], label: "不限定单一国家" },
       languageTags: [],
       timezonePrefixes: [],
-      networkTraits: ["stable", "developer"],
+      networkTraits: ["stable"],
     },
     weights: {
-      ai_services: 35,
-      developer_services: 20,
+      ai_services: 50,
       reputation: 10,
-      network: 5,
+      network: 10,
       dns: 10,
       webrtc: 5,
       browser: 5,
@@ -409,7 +409,6 @@ const profiles = [
     },
     checks: [
       serviceCheck("ai_services", "AI 服务", "AI"),
-      serviceCheck("developer_services", "开发者生态", "开发者生态"),
       REPUTATION,
       NETWORK,
       DNS,
@@ -418,11 +417,12 @@ const profiles = [
       LOCATION_CONSISTENCY,
     ],
     serviceIds: [
+      "chatgpt",
       "openai",
       "claude",
       "gemini",
-      "cursor",
       "perplexity",
+      "cursor",
       "github",
       "npm",
       "pypi",
@@ -430,17 +430,15 @@ const profiles = [
     serviceGroups: [
       {
         checkId: "ai_services",
-        serviceIds: ["openai", "claude", "gemini", "cursor", "perplexity"],
-      },
-      {
-        checkId: "developer_services",
-        serviceIds: ["github", "npm", "pypi"],
+        serviceIds: ["chatgpt", "openai", "claude", "gemini", "perplexity"],
       },
     ],
     scoreReadiness: {
+      minCoverage: 40,
       requiredSignalGroups: [
-        ["ai_services", "developer_services"],
-        ["reputation", "network", "dns", "webrtc", "browser", "location"],
+        ["ai_services"],
+        ["reputation", "network"],
+        ["dns", "webrtc", "browser", "location"],
       ],
     },
     criticalRules: [],
