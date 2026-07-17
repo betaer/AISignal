@@ -367,7 +367,21 @@ const scenarios = [
           [6, 5, 4, 3, 2, 1].map((seconds) => `开始分析所选身份 (${seconds}s)`).join("|"),
         observedLabels.join(" | "),
       );
-      ok("countdown action remains disabled without a selected profile", await button.isDisabled(), "disabled");
+      ok(
+        "countdown action is enabled for immediate generic analysis",
+        !(await button.isDisabled()),
+        String(await button.isDisabled()),
+      );
+      ok(
+        "countdown action exposes the active visual state",
+        (await button.getAttribute("data-auto-countdown")) === "true",
+        String(await button.getAttribute("data-auto-countdown")),
+      );
+      ok(
+        "countdown action is associated with its automatic-entry explanation",
+        (await button.getAttribute("aria-describedby")) === "identity-auto-start-status",
+        String(await button.getAttribute("aria-describedby")),
+      );
       ok(
         "screen readers receive one concise automatic-entry explanation",
         autoStartStatus === "6 秒内未选择将自动使用通用数字身份分析；选择任意画像可取消。",
@@ -388,6 +402,78 @@ const scenarios = [
       const ipv4Starts = requests.filter((url) => url.startsWith("https://4.ident.me/json")).length;
       ok("countdown uses the generic identity profile", resultText.includes("通用数字身份分析"), resultText.slice(0, 180));
       ok("automatic entry starts the core IP run exactly once", ipv4Starts === 1, `4.ident.me requests=${ipv4Starts}`);
+      await page.close();
+    },
+  },
+  {
+    name: "首页倒计时：主按钮可立即进入通用分析",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({
+        locale: "en-US",
+        timezoneId: "America/Los_Angeles",
+        viewport: { width: 1280, height: 900 },
+      });
+      const requests = [];
+      page.on("request", (request) => requests.push(request.url()));
+      await page.clock.install({ time: new Date("2026-07-18T00:00:00Z") });
+      await routeFixtures(page, base.origin, { autoStart: false });
+      await page.goto(base.href);
+      await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
+      await page.clock.runFor(2020);
+
+      const button = page.locator("#identity-start");
+      const labelBeforeClick = (await button.innerText()).trim();
+      const visualState = await button.evaluate((node) => {
+        const style = getComputedStyle(node);
+        return {
+          autoCountdown: node.getAttribute("data-auto-countdown"),
+          backgroundImage: style.backgroundImage,
+          boxShadow: style.boxShadow,
+          cursor: style.cursor,
+        };
+      });
+      ok(
+        "countdown primary action remains enabled before its deadline",
+        !(await button.isDisabled()),
+        String(await button.isDisabled()),
+      );
+      ok(
+        "countdown primary action keeps the requested countdown label",
+        labelBeforeClick === "开始分析所选身份 (4s)",
+        labelBeforeClick,
+      );
+      ok(
+        "countdown primary action has a tactile active treatment",
+        visualState.autoCountdown === "true" &&
+          visualState.backgroundImage.includes("linear-gradient") &&
+          visualState.boxShadow !== "none" &&
+          visualState.cursor === "pointer",
+        JSON.stringify(visualState),
+      );
+
+      await button.click();
+      const stageAfterClick = await page.locator("body").getAttribute("data-app-stage");
+      ok(
+        "countdown primary action enters generic analysis immediately",
+        stageAfterClick === "running",
+        String(stageAfterClick),
+      );
+      if (stageAfterClick !== "running") {
+        await page.close();
+        return;
+      }
+
+      await page.clock.resume();
+      await waitForScore(page);
+      await page.waitForSelector("#identity-result-root .identity-summary-card");
+      const resultText = await page.locator("#identity-result-root").innerText();
+      const ipv4Starts = requests.filter((url) => url.startsWith("https://4.ident.me/json")).length;
+      ok(
+        "countdown primary action uses the generic identity profile",
+        resultText.includes("通用数字身份分析"),
+        resultText.slice(0, 180),
+      );
+      ok("countdown primary action starts the core IP run exactly once", ipv4Starts === 1, `4.ident.me requests=${ipv4Starts}`);
       await page.close();
     },
   },
@@ -414,6 +500,11 @@ const scenarios = [
         selectedLabel,
       );
       ok(
+        "selection removes the countdown visual state",
+        (await page.locator("#identity-start").getAttribute("data-auto-countdown")) === null,
+        String(await page.locator("#identity-start").getAttribute("data-auto-countdown")),
+      );
+      ok(
         "selection announces that automatic entry is cancelled",
         cancellationStatus === "自动进入已取消，请点击按钮开始分析所选身份。",
         cancellationStatus,
@@ -430,6 +521,28 @@ const scenarios = [
       );
       ok("selection cancellation prevents the core IP detection run", detectionRequests.length === 0, detectionRequests.join(", "));
       await page.close();
+    },
+  },
+  {
+    name: "首页倒计时：键盘可立即进入通用分析",
+    async run({ browser, base, ok }) {
+      for (const key of ["Enter", "Space"]) {
+        const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+        await page.clock.install({ time: new Date("2026-07-18T00:00:00Z") });
+        await routeFixtures(page, base.origin, { autoStart: false });
+        await page.goto(base.href);
+        await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
+
+        const button = page.locator("#identity-start");
+        await button.focus();
+        await button.press(key);
+        ok(
+          `${key} activates the countdown primary action`,
+          (await page.locator("body").getAttribute("data-app-stage")) === "running",
+          String(await page.locator("body").getAttribute("data-app-stage")),
+        );
+        await page.close();
+      }
     },
   },
   {
@@ -472,6 +585,11 @@ const scenarios = [
         String(await page.locator("body").getAttribute("data-app-stage")),
       );
       ok("reselection restores the normal action without another countdown", actionLabel === "开始分析所选身份", actionLabel);
+      ok(
+        "reselection restores the genuinely disabled unselected action",
+        await page.locator("#identity-start").isDisabled(),
+        String(await page.locator("#identity-start").isDisabled()),
+      );
       await page.close();
     },
   },
@@ -566,7 +684,7 @@ const scenarios = [
         mobileLayout.columns === 1 && mobileLayout.rows === 3,
         JSON.stringify(mobileLayout),
       );
-      ok("start button remains disabled during the initial countdown", startDisabled, String(startDisabled));
+      ok("start button is enabled during the active initial countdown", !startDisabled, String(startDisabled));
       ok("detailed workspace is hidden before analysis starts", workspaceHidden, String(workspaceHidden));
       ok(
         "no detection request runs before selection or countdown expiry",

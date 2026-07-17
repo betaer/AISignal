@@ -5365,7 +5365,14 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       input.checked = input.value === state.selectedIdentityId;
     });
     if (startButton) {
-      startButton.disabled = !state.selectedIdentityId;
+      var isAutoCountdownAction =
+        !state.selectedIdentityId && identityAutoCountdown.active && identityAutoCountdown.remaining > 0;
+      startButton.disabled = !state.selectedIdentityId && !isAutoCountdownAction;
+      if (isAutoCountdownAction) {
+        startButton.setAttribute("data-auto-countdown", "true");
+      } else {
+        startButton.removeAttribute("data-auto-countdown");
+      }
       var profile = state.selectedIdentityId ? getIdentityProfile(state.selectedIdentityId) : null;
       startButton.textContent = profile
         ? "开始分析 · " + profile.icon + " " + profile.name
@@ -6694,6 +6701,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         event.preventDefault();
         if (state.selectedIdentityId) {
           startIdentityAnalysis(state.selectedIdentityId);
+        } else if (identityAutoCountdown.active) {
+          startIdentityAnalysis("generic");
         }
       });
     }
