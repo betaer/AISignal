@@ -339,6 +339,203 @@ async function scoreNodeSnapshot(page) {
 // ---------- 场景定义 ----------
 const scenarios = [
   {
+    name: "Demo 首页隔离与交互：独立资源、统一图标、五项工具和可暂停倒计时",
+    async run({ browser, base, ok }) {
+      const rootPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      await routeFixtures(rootPage, base.origin, { autoStart: false });
+      await rootPage.goto(base.href);
+      const rootActions = await rootPage.locator("#floating-actions > .floating-action").evaluateAll((nodes) =>
+        nodes.map((node) => node.id),
+      );
+      ok(
+        "root homepage keeps its existing eight floating actions",
+        rootActions.length === 8 && rootActions.includes("claude-shortcut") && rootActions.includes("github-shortcut"),
+        rootActions.join(","),
+      );
+      await rootPage.close();
+
+      const page = await browser.newPage({
+        locale: "en-US",
+        timezoneId: "America/Los_Angeles",
+        viewport: { width: 1280, height: 900 },
+      });
+      await page.clock.install({ time: new Date("2026-07-18T00:00:00Z") });
+      await routeFixtures(page, base.origin, { autoStart: false });
+      const demoUrl = new URL("demo/index-new.html", base);
+      const response = await page.goto(demoUrl.href);
+      ok("demo entry responds successfully", response?.status() === 200, `status=${response?.status()}`);
+
+      const resourceState = await page.evaluate(() => ({
+        marker: document.body.dataset.demoVersion || "",
+        style: Array.from(document.styleSheets).some((sheet) => /demo\/styles-new\.css/.test(sheet.href || "")),
+        script: Array.from(document.scripts).some((script) => /demo\/app-new\.js/.test(script.src || "")),
+      }));
+      ok(
+        "demo uses isolated HTML, CSS and JavaScript",
+        resourceState.marker === "identity-v2" && resourceState.style && resourceState.script,
+        JSON.stringify(resourceState),
+      );
+
+      const visibleCards = page.locator(".identity-card:not([hidden])");
+      const cardAudit = await visibleCards.evaluateAll((cards) =>
+        cards.map((card) => ({
+          text: card.textContent || "",
+          svg: Boolean(card.querySelector(".identity-card-icon svg use")),
+          target: card.querySelector(".identity-card-market")?.textContent.trim() || "",
+        })),
+      );
+      ok("demo keeps exactly three visible identity cards", cardAudit.length === 3, `count=${cardAudit.length}`);
+      ok(
+        "identity cards use the shared SVG icon language instead of system emoji",
+        cardAudit.every((card) => card.svg && !/[🤖🎬🛒🌐🇺🇸]/u.test(card.text)),
+        JSON.stringify(cardAudit),
+      );
+      ok(
+        "US target scope is visible on creator and merchant profiles",
+        cardAudit.filter((card) => /自媒体创作者|跨境商家/.test(card.text)).every((card) => card.target === "目标市场：美国"),
+        JSON.stringify(cardAudit),
+      );
+
+      const button = page.locator("#identity-start");
+      ok(
+        "unselected countdown names the generic action",
+        (await button.innerText()).trim() === "使用通用画像开始分析 (6s)" && !(await button.isDisabled()),
+        (await button.innerText()).trim(),
+      );
+      await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 100);
+      await page.locator("#identity-entry-title").click({ position: { x: 6, y: 6 } });
+      await page.clock.runFor(7200);
+      const pausedState = await page.evaluate(() => ({
+        stage: document.body.dataset.appStage,
+        label: document.querySelector("#identity-start")?.textContent.trim(),
+        disabled: document.querySelector("#identity-start")?.disabled,
+        status: document.querySelector("#identity-auto-start-status")?.textContent.trim(),
+      }));
+      ok(
+        "exploring the page pauses automatic entry while keeping manual generic analysis available",
+        pausedState.stage === "select" &&
+          pausedState.label === "使用通用画像开始分析" &&
+          pausedState.disabled === false &&
+          /暂停|已取消/.test(pausedState.status),
+        JSON.stringify(pausedState),
+      );
+
+      const demoActions = await page.locator("#floating-actions > .floating-action").evaluateAll((nodes) =>
+        nodes.map((node) => ({ id: node.id, label: node.getAttribute("aria-label") || "" })),
+      );
+      ok(
+        "demo floating toolbar contains exactly the five approved actions",
+        demoActions.map((item) => item.id).join(",") ===
+          "run-all,copy-ai-report,copy-summary,privacy-toggle,floating-top",
+        JSON.stringify(demoActions),
+      );
+      ok(
+        "demo floating toolbar removes Claude, GitHub and standalone AI shortcuts",
+        !demoActions.some((item) => /claude|github|shortcut/i.test(item.id)),
+        JSON.stringify(demoActions),
+      );
+
+      await button.click();
+      ok(
+        "paused countdown button still starts generic analysis on demand",
+        (await page.locator("body").getAttribute("data-app-stage")) === "running",
+        String(await page.locator("body").getAttribute("data-app-stage")),
+      );
+      await page.clock.resume();
+      await page.close();
+    },
+  },
+  {
+    name: "Demo 结果结构与移动端：身份叙事优先、详情折叠且无横向溢出",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({
+        locale: "en-US",
+        timezoneId: "America/Los_Angeles",
+        viewport: { width: 390, height: 844 },
+      });
+      await routeFixtures(page, base.origin, { autoStart: false });
+      await page.goto(new URL("demo/index-new.html", base).href);
+      await page.locator("#identity-generic").click();
+      await waitForScore(page);
+      await page.waitForSelector("#identity-summary");
+
+      const structure = await page.evaluate(() => ({
+        order: Array.from(document.querySelector("#identity-result-root .identity-result")?.children || []).map(
+          (node) => node.id,
+        ),
+        scoreLabel: document.querySelector(".identity-match-score-label")?.textContent.trim(),
+        detailsOpen: document.querySelector("#identity-details")?.open,
+        advancedOpen: document.querySelector("#advanced-diagnostics")?.open,
+        nav: Array.from(document.querySelectorAll("#nav-list .nav-item")).map((node) => node.textContent.trim()),
+      }));
+      ok(
+        "generic result uses the environment consistency score label",
+        structure.scoreLabel === "环境一致性分",
+        structure.scoreLabel || "missing",
+      );
+      ok(
+        "result follows summary, reasons, advice, signals and details order",
+        structure.order.join(",") ===
+          "identity-summary,identity-reasons,identity-advice,identity-signals,identity-details",
+        structure.order.join(","),
+      );
+      ok(
+        "full scoring basis and advanced diagnostics are collapsed by default",
+        structure.detailsOpen === false && structure.advancedOpen === false,
+        JSON.stringify(structure),
+      );
+      ok(
+        "result navigation contains exactly five identity-first destinations",
+        structure.nav.join(",") === "身份总结,匹配原因,调整建议,环境信号,高级诊断",
+        structure.nav.join(","),
+      );
+
+      await page.locator("#identity-details > summary").click();
+      await page.locator("#advanced-diagnostics > summary").click();
+      await page.waitForSelector("#advanced-diagnostics[open] #score-number");
+      const mobileAudit = await page.evaluate(() => {
+        const scrolling = document.scrollingElement;
+        const actions = Array.from(document.querySelectorAll("#floating-actions > .floating-action")).map((node) => {
+          const rect = node.getBoundingClientRect();
+          return { width: rect.width, height: rect.height };
+        });
+        const details = document.querySelector("#identity-details").getBoundingClientRect();
+        return {
+          overflow: scrolling.scrollWidth - scrolling.clientWidth,
+          actionCount: actions.length,
+          targetsAreLargeEnough: actions.every((item) => item.width >= 44 && item.height >= 44),
+          detailsWidth: details.width,
+          viewportWidth: innerWidth,
+        };
+      });
+      ok(
+        "390px result has no horizontal overflow and keeps five accessible touch targets",
+        mobileAudit.overflow === 0 && mobileAudit.actionCount === 5 && mobileAudit.targetsAreLargeEnough,
+        JSON.stringify(mobileAudit),
+      );
+
+      await page.setViewportSize({ width: 300, height: 700 });
+      const narrowAudit = await page.evaluate(() => ({
+        overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,
+        scrollX,
+      }));
+      ok(
+        "300px result cannot be scrolled sideways",
+        narrowAudit.overflow === 0 && narrowAudit.scrollX === 0,
+        JSON.stringify(narrowAudit),
+      );
+
+      await page.locator("[data-identity-action='reselect']").click();
+      await page.locator('input[value="ai_worker"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page);
+      await page.waitForSelector("#identity-summary");
+      const selectedScoreLabel = (await page.locator(".identity-match-score-label").innerText()).trim();
+      ok("selected profile uses the target match score label", selectedScoreLabel === "目标匹配度", selectedScoreLabel);
+      await page.close();
+    },
+  },
+  {
     name: "首页倒计时：无选择时显示 6 至 1 秒并自动进入通用分析",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({
