@@ -4506,10 +4506,25 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   }
 
   function renderScoreInsights() {
-    var items = collectRiskItems();
+    var severityPriority = { red: 0, amber: 1, unconfirmed: 2 };
+    var items = collectRiskItems()
+      .map(function (item, index) {
+        return { item: item, index: index };
+      })
+      .sort(function (a, b) {
+        var severityDelta =
+          (severityPriority[a.item.severity] == null ? 9 : severityPriority[a.item.severity]) -
+          (severityPriority[b.item.severity] == null ? 9 : severityPriority[b.item.severity]);
+        return severityDelta || a.index - b.index;
+      })
+      .map(function (entry) {
+        return entry.item;
+      });
     if (items.length) {
       return (
-        '<div class="score-risk-strip" aria-label="风险项定位">' +
+        '<div class="score-risk-strip" aria-label="优先风险项定位，共 ' +
+        items.length +
+        ' 项；移动端优先显示风险最高的两项">' +
         items
           .map(function (item) {
             return (
@@ -4525,6 +4540,11 @@ import { analyzeIdentity } from "./identityAnalysis.js";
             );
           })
           .join("") +
+        (items.length > 2
+          ? '<span class="visually-hidden">另有 ' +
+            (items.length - 2) +
+            " 项风险信号可在下方对应检测模块中查看。</span>"
+          : "") +
         "</div>"
       );
     }
@@ -5352,6 +5372,9 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       return;
     }
     document.body.dataset.appStage = normalized;
+    if (normalized !== "result") {
+      setMobileNavOpen(false, false);
+    }
     var entry = $("#identity-entry");
     var progress = $("#analysis-progress");
     var workspace = $("#analysis-workspace");
@@ -5810,6 +5833,20 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           link.removeAttribute("aria-current");
         }
       });
+      var mobileNavLabel = $("#mobile-nav-label");
+      if (mobileNavLabel) {
+        var activeNavItem = NAV.find(function (item) {
+          return item[0] === state.activeId;
+        });
+        mobileNavLabel.textContent = activeNavItem ? activeNavItem[1] : NAV[0][1];
+        var mobileNavToggle = $("#mobile-nav-toggle");
+        if (mobileNavToggle) {
+          mobileNavToggle.setAttribute(
+            "aria-label",
+            mobileNavAccessibleName(mobileNavToggle.getAttribute("aria-expanded") === "true")
+          );
+        }
+      }
     }
     document.querySelectorAll(".segmented-button").forEach(function (button) {
       var isActive = button.dataset.region === state.region;
@@ -5826,6 +5863,32 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       button.setAttribute("aria-expanded", isExpanded ? "true" : "false");
     });
     updateNavScrollHint();
+  }
+
+  function mobileNavAccessibleName(open) {
+    var label = ((($("#mobile-nav-label") || {}).textContent || "网络风险") + "").trim();
+    return label + "：" + (open ? "关闭" : "打开") + "检测项目导航";
+  }
+
+  function setMobileNavOpen(open, restoreFocus) {
+    var anchorNav = document.querySelector(".anchor-nav");
+    var toggle = $("#mobile-nav-toggle");
+    if (document.body) {
+      document.body.classList.toggle("is-mobile-nav-open", Boolean(open));
+    }
+    if (!anchorNav || !toggle) {
+      return;
+    }
+    anchorNav.classList.toggle("is-mobile-open", open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle.setAttribute("aria-label", mobileNavAccessibleName(open));
+    if (!open && restoreFocus) {
+      try {
+        toggle.focus({ preventScroll: true });
+      } catch (err) {
+        toggle.focus();
+      }
+    }
   }
 
   function syncNavigationHash(sectionId, replace) {
@@ -6868,6 +6931,17 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           document.activeElement.blur();
         }
       }
+      var mobileNavToggle = $("#mobile-nav-toggle");
+      var anchorNav = document.querySelector(".anchor-nav");
+      if (
+        anchorNav &&
+        anchorNav.classList.contains("is-mobile-open") &&
+        !event.target.closest(".anchor-nav") &&
+        event.target !== mobileNavToggle &&
+        !event.target.closest("#mobile-nav-toggle")
+      ) {
+        setMobileNavOpen(false, false);
+      }
     });
     document.querySelectorAll("[data-region]").forEach(function (button) {
       button.addEventListener("click", function () {
@@ -6891,8 +6965,36 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     var navList = $("#nav-list");
     if (navList) {
       navList.addEventListener("scroll", throttle(updateNavScrollHint, 80), { passive: true });
+      navList.addEventListener("click", function (event) {
+        if (event.target.closest(".nav-item") && window.matchMedia("(max-width: 620px)").matches) {
+          window.setTimeout(function () {
+            setMobileNavOpen(false, true);
+          }, 0);
+        }
+      });
     }
-    window.addEventListener("resize", throttle(updateNavScrollHint, 120), { passive: true });
+    var mobileNavToggle = $("#mobile-nav-toggle");
+    if (mobileNavToggle) {
+      mobileNavToggle.addEventListener("click", function () {
+        var anchorNav = document.querySelector(".anchor-nav");
+        setMobileNavOpen(!anchorNav.classList.contains("is-mobile-open"), false);
+      });
+    }
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && document.querySelector(".anchor-nav.is-mobile-open")) {
+        setMobileNavOpen(false, true);
+      }
+    });
+    window.addEventListener(
+      "resize",
+      throttle(function () {
+        updateNavScrollHint();
+        if (!window.matchMedia("(max-width: 620px)").matches) {
+          setMobileNavOpen(false, false);
+        }
+      }, 120),
+      { passive: true }
+    );
   }
 
   function bindDynamicEvents() {
