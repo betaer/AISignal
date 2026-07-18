@@ -7,29 +7,42 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const sourcePath = resolve(root, "styles.css");
-const outputPath = resolve(root, "styles.min.css");
 const checkOnly = process.argv.includes("--check");
+const targets = [
+  { source: "styles.css", output: "styles.min.css" },
+  { source: "demo/styles-new.css", output: "demo/styles-new.min.css" },
+];
 
-const result = await transform(readFileSync(sourcePath, "utf8"), {
-  loader: "css",
-  minify: true,
-  charset: "utf8",
-});
-const built = Buffer.from(result.code);
+let mismatch = false;
+for (const target of targets) {
+  const sourcePath = resolve(root, target.source);
+  const outputPath = resolve(root, target.output);
+  const result = await transform(readFileSync(sourcePath, "utf8"), {
+    loader: "css",
+    minify: true,
+    charset: "utf8",
+  });
+  const built = Buffer.from(result.code);
 
-if (checkOnly) {
-  const current = readFileSync(outputPath);
-  if (!built.equals(current)) {
-    console.error(
-      "styles.min.css 与 styles.css 的压缩产物不一致，请重新生成：\n" +
-        "  node scripts/build-css.mjs\n" +
-        "并同步 bump index.html 里的 CSS ?v= 版本号。",
-    );
-    process.exit(1);
+  if (checkOnly) {
+    const current = readFileSync(outputPath);
+    if (!built.equals(current)) {
+      mismatch = true;
+      console.error(`${target.output} 与 ${target.source} 的压缩产物不一致`);
+    } else {
+      console.log(`build-css --check: ${target.output} 与源码一致`);
+    }
+  } else {
+    writeFileSync(outputPath, built);
+    console.log(`build-css: ${target.output} 已生成（${built.length} bytes）`);
   }
-  console.log("build-css --check: styles.min.css 与源码一致");
-} else {
-  writeFileSync(outputPath, built);
-  console.log(`build-css: styles.min.css 已生成（${built.length} bytes）`);
+}
+
+if (mismatch) {
+  console.error(
+    "请重新生成浏览器样式：\n" +
+      "  node scripts/build-css.mjs\n" +
+      "并同步 bump 对应 HTML 里的 CSS ?v= 版本号。",
+  );
+  process.exit(1);
 }

@@ -6,6 +6,7 @@ const STATIC_FILES = [
   "app.min.js",
   "favicon.svg",
   "assets",
+  "demo",
 ];
 
 const LEGACY_SUMMARY_URL =

@@ -7,7 +7,7 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 
@@ -367,8 +367,8 @@ const scenarios = [
 
       const resourceState = await page.evaluate(() => ({
         marker: document.body.dataset.demoVersion || "",
-        style: Array.from(document.styleSheets).some((sheet) => /demo\/styles-new\.css/.test(sheet.href || "")),
-        script: Array.from(document.scripts).some((script) => /demo\/app-new\.js/.test(script.src || "")),
+        style: Array.from(document.styleSheets).some((sheet) => /demo\/styles-new(?:\.min)?\.css/.test(sheet.href || "")),
+        script: Array.from(document.scripts).some((script) => /demo\/app-new(?:\.min)?\.js/.test(script.src || "")),
       }));
       ok(
         "demo uses isolated HTML, CSS and JavaScript",
@@ -443,6 +443,46 @@ const scenarios = [
       );
       await page.clock.resume();
       await page.close();
+
+      const filePage = await browser.newPage({ viewport: { width: 900, height: 700 } });
+      await filePage.goto(pathToFileURL(resolve(projectRoot, "demo/index-new.html")).href);
+      const localFileState = await filePage.evaluate(() => ({
+        marker: document.body.dataset.demoVersion,
+        cards: document.querySelectorAll(".identity-card:not([hidden])").length,
+        script: Array.from(document.scripts).some((script) => /app-new\.min\.js/.test(script.src)),
+      }));
+      ok(
+        "demo can also be opened directly from the local file path",
+        localFileState.marker === "identity-v2" && localFileState.cards === 3 && localFileState.script,
+        JSON.stringify(localFileState),
+      );
+      await filePage.close();
+
+      const autoPage = await browser.newPage({ viewport: { width: 900, height: 700 } });
+      const autoCoreRequests = [];
+      autoPage.on("request", (request) => {
+        if (request.url().includes("4.ident.me/json")) autoCoreRequests.push(request.url());
+      });
+      await autoPage.clock.install({ time: new Date("2026-07-18T00:00:00Z") });
+      await routeFixtures(autoPage, base.origin, { autoStart: false });
+      await autoPage.goto(demoUrl.href);
+      await autoPage.clock.pauseAt((await autoPage.evaluate(() => Date.now())) + 100);
+      await autoPage.clock.runFor(6200);
+      const autoState = await autoPage.evaluate(() => ({
+        stage: document.body.dataset.appStage,
+        progress: document.querySelector("#analysis-progress-title")?.textContent.trim() || "",
+      }));
+      ok(
+        "fully idle demo countdown enters generic analysis after six seconds",
+        autoState.stage === "running" && autoState.progress.includes("通用"),
+        JSON.stringify(autoState),
+      );
+      ok(
+        "fully idle demo countdown starts the core analysis exactly once",
+        autoCoreRequests.length === 1,
+        `4.ident.me requests=${autoCoreRequests.length}`,
+      );
+      await autoPage.close();
     },
   },
   {
@@ -490,8 +530,50 @@ const scenarios = [
         structure.nav.join(","),
       );
 
+      const contentAudit = await page.evaluate(() => ({
+        reasonHeadings: Array.from(document.querySelectorAll("#identity-reasons h3")).map((node) => node.textContent.trim()),
+        reasonCounts: Array.from(document.querySelectorAll("#identity-reasons .identity-reasons-panel")).map(
+          (panel) => panel.querySelectorAll(".identity-reasons-item:not(.identity-reasons-empty)").length,
+        ),
+        signalEvidenceSize: parseFloat(
+          getComputedStyle(document.querySelector("#identity-signals .identity-signal-evidence")).fontSize,
+        ),
+        resultText: document.querySelector("#identity-result-root").textContent,
+      }));
+      ok(
+        "reasons use the approved language and limit each side to three priority signals",
+        contentAudit.reasonHeadings.includes("支持匹配的信号") &&
+          contentAudit.reasonHeadings.includes("拉低匹配度的信号") &&
+          contentAudit.reasonCounts.every((count) => count <= 3) &&
+          !contentAudit.resultText.includes("为什么不像"),
+        JSON.stringify(contentAudit),
+      );
+      ok(
+        "signal evidence remains readable on mobile",
+        contentAudit.signalEvidenceSize >= 13.5,
+        `font-size=${contentAudit.signalEvidenceSize}`,
+      );
+
+      await page.locator("#identity-result-title").focus();
+      const titleFocus = await page.locator("#identity-result-title").evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth };
+      });
+      await page.keyboard.press("Tab");
+      const controlFocus = await page.locator("[data-identity-action='reselect']").evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth };
+      });
+      ok(
+        "programmatic title focus is quiet while interactive focus remains visible",
+        (titleFocus.outlineStyle === "none" || titleFocus.outlineWidth === "0px") &&
+          controlFocus.outlineStyle !== "none" &&
+          parseFloat(controlFocus.outlineWidth) >= 2,
+        JSON.stringify({ titleFocus, controlFocus }),
+      );
+
       await page.locator("#identity-details > summary").click();
-      await page.locator("#advanced-diagnostics > summary").click();
+      await page.locator('[data-nav="advanced-diagnostics"]').click();
       await page.waitForSelector("#advanced-diagnostics[open] #score-number");
       const mobileAudit = await page.evaluate(() => {
         const scrolling = document.scrollingElement;
@@ -515,15 +597,58 @@ const scenarios = [
       );
 
       await page.setViewportSize({ width: 300, height: 700 });
-      const narrowAudit = await page.evaluate(() => ({
-        overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,
-        scrollX,
-      }));
+      const narrowAudit = await page.evaluate(() => {
+        const core = document.querySelector("#advanced-diagnostics .score-core")?.getBoundingClientRect();
+        const nodes = Array.from(document.querySelectorAll("#advanced-diagnostics .score-node")).map((node) => {
+          const rect = node.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+        });
+        const dockStyle = getComputedStyle(document.querySelector("#floating-actions"));
+        const primaryIp = document.querySelector("#advanced-diagnostics [data-ip-card-field='primary-ip']");
+        const primaryIpStyle = primaryIp ? getComputedStyle(primaryIp) : null;
+        const primaryIpRect = primaryIp?.getBoundingClientRect();
+        const overlapsCore = core
+          ? nodes.some((rect) =>
+              rect.left < core.right && rect.right > core.left && rect.top < core.bottom && rect.bottom > core.top,
+            )
+          : true;
+        return {
+          overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,
+          scrollX,
+          nodeCount: nodes.length,
+          overlapsCore,
+          nodesFollowCore: Boolean(core) && nodes.every((rect) => rect.top >= core.bottom + 10),
+          primaryIpSingleLine:
+            Boolean(primaryIpRect && primaryIpStyle) &&
+            primaryIpRect.height <= parseFloat(primaryIpStyle.lineHeight) * 1.25,
+          dockBackground: dockStyle.backgroundColor,
+          dockRadius: dockStyle.borderRadius,
+        };
+      });
       ok(
         "300px result cannot be scrolled sideways",
         narrowAudit.overflow === 0 && narrowAudit.scrollX === 0,
         JSON.stringify(narrowAudit),
       );
+      ok(
+        "300px advanced score moves six nodes below the ring and presents the mobile actions as a dock",
+        narrowAudit.nodeCount === 6 &&
+          !narrowAudit.overlapsCore &&
+          narrowAudit.nodesFollowCore &&
+          narrowAudit.primaryIpSingleLine &&
+          narrowAudit.dockBackground !== "rgba(0, 0, 0, 0)" &&
+          parseFloat(narrowAudit.dockRadius) >= 20,
+        JSON.stringify(narrowAudit),
+      );
+
+      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+      await page.waitForTimeout(100);
+      const bottomAudit = await page.evaluate(() => {
+        const toolbar = document.querySelector("#floating-actions").getBoundingClientRect();
+        const footer = document.querySelector(".site-footer").getBoundingClientRect();
+        return { toolbarTop: toolbar.top, footerBottom: footer.bottom, overlap: toolbar.top < footer.bottom + 8 };
+      });
+      ok("mobile bottom toolbar leaves room for the footer", !bottomAudit.overlap, JSON.stringify(bottomAudit));
 
       await page.locator("[data-identity-action='reselect']").click();
       await page.locator('input[value="ai_worker"]').check();
@@ -532,6 +657,141 @@ const scenarios = [
       await page.waitForSelector("#identity-summary");
       const selectedScoreLabel = (await page.locator(".identity-match-score-label").innerText()).trim();
       ok("selected profile uses the target match score label", selectedScoreLabel === "目标匹配度", selectedScoreLabel);
+      await page.close();
+    },
+  },
+  {
+    name: "Demo 浮动工具状态：分享反馈、AI 图标和最小化隐私隐藏",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({
+        locale: "en-US",
+        timezoneId: "America/Los_Angeles",
+        viewport: { width: 1280, height: 900 },
+      });
+      await captureCopiedSummary(page);
+      await routeFixtures(page, base.origin, { autoStart: false });
+      await page.goto(new URL("demo/index-new.html", base).href);
+      await page.locator("#identity-generic").click();
+      await waitForScore(page);
+
+      const aiIcon = await page.locator("#copy-ai-report .floating-ai-logo").evaluate((node) => ({
+        src: node.getAttribute("src"),
+        width: node.naturalWidth,
+        height: node.naturalHeight,
+      }));
+      ok(
+        "share-to-AI uses the supplied merged SVG asset",
+        aiIcon.src === "assets/merged_ai_logo.svg" && aiIcon.width > 0 && aiIcon.height > 0,
+        JSON.stringify(aiIcon),
+      );
+
+      await page.locator("#copy-ai-report").click();
+      await page.waitForFunction(() => document.querySelector("#copy-ai-report")?.dataset.copyState === "copied");
+      const rawReport = await page.evaluate(() => window.__copiedSummary);
+      ok(
+        "normal share keeps the full observed IP and shows a copied state",
+        rawReport.includes(FIXTURE_IPV4) &&
+          (await page.locator(".floating-copy-ai-label").innerText()).trim() === "已复制",
+        rawReport.slice(0, 220),
+      );
+      ok(
+        "share-to-AI report leads with digital identity and states its raw-IP mode accurately",
+        rawReport.includes("# AI Signal Guard 数字身份分析报告") &&
+          rawReport.includes("报告版本：aisg-report/2.0") &&
+          rawReport.includes("## 数字身份摘要") &&
+          rawReport.includes("隐私级别：原始 IP") &&
+          rawReport.indexOf("## 数字身份摘要") < rawReport.indexOf("## 高级网络诊断（独立参考）") &&
+          !rawReport.includes("始终脱敏"),
+        rawReport.slice(0, 520),
+      );
+      const privacyCopy = await page.locator("#privacy-panel").textContent();
+      ok(
+        "privacy explanation matches the default and hidden report behavior",
+        privacyCopy.includes("默认保留完整 IP") &&
+          privacyCopy.includes("IPv4") &&
+          privacyCopy.includes("仅隐藏最后一段") &&
+          privacyCopy.includes("IPv6 仅保留前三组"),
+        privacyCopy.replace(/\s+/g, " ").trim(),
+      );
+      await page.waitForTimeout(2100);
+      ok(
+        "share-to-AI copied state returns to idle after two seconds",
+        (await page.locator(".floating-copy-ai-label").innerText()).trim() === "分享给 AI",
+        (await page.locator(".floating-copy-ai-label").innerText()).trim(),
+      );
+
+      await page.locator("#privacy-toggle").click();
+      const hiddenState = await page.evaluate(() => {
+        const ip = document.querySelector("[data-ip-card-field='primary-ip']");
+        const style = ip ? getComputedStyle(ip) : null;
+        const exposedAttributes = Array.from(document.querySelectorAll("[title], [placeholder], [aria-label]")).flatMap(
+          (node) => ["title", "placeholder", "aria-label"]
+            .filter((attribute) => node.hasAttribute(attribute))
+            .map((attribute) => `${attribute}=${node.getAttribute(attribute)}`),
+        );
+        return {
+          label: document.querySelector(".floating-privacy-label")?.textContent.trim(),
+          pressed: document.querySelector("#privacy-toggle")?.getAttribute("aria-pressed"),
+          ip: ip?.textContent.trim() || "",
+          filter: style?.filter || "",
+          exposedAttributes,
+          placeholder: document.querySelector("#multi-ip")?.getAttribute("placeholder") || "",
+          demoPrivacy: localStorage.getItem("aisg-demo-privacy-mode"),
+          rootPrivacy: localStorage.getItem("aisg-privacy-mode"),
+        };
+      });
+      ok(
+        "hide mode masks only the last IP segment without blurring the result",
+        hiddenState.label === "取消隐藏" &&
+          hiddenState.pressed === "true" &&
+          hiddenState.ip.includes("203.0.113.x") &&
+          !hiddenState.ip.includes(FIXTURE_IPV4) &&
+          hiddenState.filter === "none",
+        JSON.stringify(hiddenState),
+      );
+      ok(
+        "hide mode also masks tooltips and placeholders without changing the root-page preference",
+        hiddenState.exposedAttributes.every(
+          (value) => !value.includes(FIXTURE_IPV4) && !value.includes(FIXTURE_IPV6),
+        ) &&
+          hiddenState.placeholder.includes("203.0.113.x") &&
+          hiddenState.demoPrivacy === "1" &&
+          hiddenState.rootPrivacy === null,
+        JSON.stringify(hiddenState),
+      );
+
+      await page.locator("#copy-ai-report").click();
+      await page.waitForFunction(() => document.querySelector("#copy-ai-report")?.dataset.copyState === "copied");
+      const hiddenReport = await page.evaluate(() => window.__copiedSummary);
+      ok(
+        "share-to-AI follows the active hide mode",
+        hiddenReport.includes("203.0.113.x") &&
+          !hiddenReport.includes(FIXTURE_IPV4) &&
+          hiddenReport.includes(base.origin) &&
+          hiddenReport.includes("隐私级别：隐藏最后一段") &&
+          hiddenReport.includes("本报告已开启隐藏"),
+        hiddenReport.slice(0, 220),
+      );
+
+      await page.locator("#privacy-toggle").click();
+      const restoredState = await page.evaluate(() => ({
+        label: document.querySelector(".floating-privacy-label")?.textContent.trim(),
+        pressed: document.querySelector("#privacy-toggle")?.getAttribute("aria-pressed"),
+        ip: document.querySelector("[data-ip-card-field='primary-ip']")?.textContent.trim() || "",
+      }));
+      ok(
+        "privacy control has only hide and unhide states and restores the full IP",
+        restoredState.label === "隐藏" && restoredState.pressed === "false" && restoredState.ip.includes(FIXTURE_IPV4),
+        JSON.stringify(restoredState),
+      );
+
+      await page.locator("#copy-summary").click();
+      await page.waitForFunction(() => document.querySelector("#copy-summary")?.dataset.copyState === "copied");
+      ok(
+        "share action exposes its copied confirmation",
+        (await page.locator(".floating-share-label").innerText()).trim() === "已复制",
+        (await page.locator(".floating-share-label").innerText()).trim(),
+      );
       await page.close();
     },
   },

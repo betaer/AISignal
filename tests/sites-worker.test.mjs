@@ -104,6 +104,41 @@ test("serves the browser bundle through the assets binding", async () => {
   assert.doesNotMatch(javascript, /betaer\.github\.io\/aisignalguard/i);
 });
 
+test("serves the isolated identity demo and its browser assets", async () => {
+  const worker = await loadWorker();
+  const env = { ASSETS: mockAssets() };
+  const htmlResponse = await worker.fetch(
+    new Request("https://ai-signal-guard.example/demo/index-new.html", {
+      headers: { accept: "text/html" },
+    }),
+    env,
+    context(),
+  );
+
+  assert.equal(htmlResponse.status, 200);
+  const html = await htmlResponse.text();
+  assert.match(html, /data-demo-version="identity-v2"/);
+  assert.match(html, /https:\/\/ai-signal-guard\.example\/demo\/index-new\.html/);
+  assert.match(html, /href="\.\.\/favicon\.svg/);
+  assert.match(html, /styles-new\.min\.css/);
+  assert.match(html, /app-new\.min\.js/);
+  assert.doesNotMatch(html, /(?:src|href)="favicon\.svg/);
+
+  for (const [pathname, contentType] of [
+    ["/demo/styles-new.min.css", /^text\/css/],
+    ["/demo/app-new.min.js", /^text\/javascript/],
+    ["/demo/assets/merged_ai_logo.svg", /^image\/svg\+xml/],
+  ]) {
+    const response = await worker.fetch(
+      new Request(`https://ai-signal-guard.example${pathname}`),
+      env,
+      context(),
+    );
+    assert.equal(response.status, 200, pathname);
+    assert.match(response.headers.get("content-type") || "", contentType, pathname);
+  }
+});
+
 test("returns the branded 404 page with an actual 404 status", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(
