@@ -2455,6 +2455,10 @@ body[data-app-stage="result"] .analysis-progress {
   color: var(--green);
 }
 
+.conn-card-status.amber {
+  color: #9a6817;
+}
+
 .conn-card-status.red {
   color: var(--red);
 }
@@ -3405,13 +3409,20 @@ body[data-app-stage="result"] .analysis-progress {
   }
 
   .conn-card {
-    min-height: 36px;
+    min-height: 48px;
+    grid-template-columns: 7px minmax(0, 1fr);
+    grid-template-rows: auto auto;
     gap: 10px;
-    padding: 0 11px;
+    padding: 7px 11px;
   }
 
   .conn-card-host {
     font-size: 11px;
+  }
+
+  .conn-card-status {
+    grid-column: 2;
+    white-space: normal;
   }
 
   .fingerprint-cell {
@@ -4669,4 +4680,63 @@ body[data-app-stage="result"] .analysis-progress {
     grid-template-columns: repeat(3, 44px);
     justify-content: end;
   }
+}
+
+/* 2026-07-19 · 日期版诊断宽度与全站文字链接下划线契约 */
+body.dated-wide-diagnostics .analysis-workspace > #section-root {
+  width: min(100%, 960px);
+}
+
+.text-action,
+.underlink,
+.identity-secondary-action,
+.identity-reselect,
+.section-action,
+.site-footer a,
+.status-link {
+  border-bottom: 0;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition:
+    color 180ms ease,
+    text-decoration-color 180ms ease,
+    transform 180ms ease;
+}
+
+.underlink,
+.identity-secondary-action,
+.identity-reselect,
+.site-footer a {
+  text-decoration-color: var(--line-2);
+}
+
+.text-action,
+.section-action {
+  text-decoration-color: transparent;
+}
+
+.status-link {
+  text-decoration-color: currentColor;
+}
+
+.text-action:hover,
+.underlink:hover,
+.identity-secondary-action:hover,
+.identity-reselect:hover,
+.section-action:hover,
+.site-footer a:hover,
+.status-link:hover {
+  border-bottom-color: transparent;
+  text-decoration-color: currentColor;
+}
+
+.section-action:disabled,
+.section-action:disabled:hover,
+.section-action:disabled:active {
+  color: var(--muted-2);
+  cursor: wait;
+  opacity: 0.68;
+  text-decoration-color: transparent;
+  transform: none;
 }

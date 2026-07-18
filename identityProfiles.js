@@ -239,9 +239,9 @@ const profiles = [
       WEBRTC,
       genericServiceCheck(),
     ],
-    serviceIds: ["google", "youtube", "chatgpt"],
+    serviceIds: ["google", "youtube", "whatsapp", "reddit"],
     serviceGroups: [
-      { checkId: "services", serviceIds: ["google", "youtube", "chatgpt"] },
+      { checkId: "services", serviceIds: ["google", "youtube", "whatsapp", "reddit"] },
     ],
     scoreReadiness: {
       requiredSignalGroups: [
@@ -351,11 +351,11 @@ const profiles = [
       serviceCheck("creator_services", "创作者服务", "内容创作"),
       serviceCheck("ads_environment", "广告平台信号", "广告平台"),
     ],
-    serviceIds: ["tiktok", "instagram", "youtube", "google_ads", "meta_ads"],
+    serviceIds: ["tiktok", "youtube", "instagram", "x", "google_ads", "meta_ads"],
     serviceGroups: [
       {
         checkId: "creator_services",
-        serviceIds: ["tiktok", "instagram", "youtube"],
+        serviceIds: ["tiktok", "youtube", "instagram", "x"],
       },
       {
         checkId: "ads_environment",

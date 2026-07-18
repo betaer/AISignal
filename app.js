@@ -163,54 +163,63 @@ import { analyzeIdentity } from "./identityAnalysis.js";
 
   var connTargets = [
     {
-      title: "AI 服务",
+      title: "全球站点 · 常被墙",
+      blocking: true,
       sites: [
         {
-          serviceId: "claude",
-          host: "claude.ai",
-          probeUrl: "https://claude.ai/favicon.ico",
-          softFail: true,
-          failStatus: "浏览器受限"
+          serviceId: "google",
+          label: "Google.com",
+          host: "google.com",
+          probeUrl: "https://www.google.com/generate_204",
+          fallbackUrl: "https://www.gstatic.com/generate_204"
         },
         {
-          serviceId: "chatgpt",
-          host: "chatgpt.com",
-          probeUrl: "https://chatgpt.com/favicon.ico",
-          softFail: true,
-          failStatus: "浏览器受限"
+          serviceId: "youtube",
+          label: "YouTube.com",
+          host: "youtube.com",
+          probeUrl: "https://www.youtube.com/generate_204",
+          fallbackUrl: "https://www.youtube.com/favicon.ico"
         },
+        { serviceId: "x", label: "X.com", host: "x.com", probeUrl: "https://x.com/favicon.ico", mode: "cors" },
         {
-          serviceId: "openai",
-          host: "openai.com",
-          probeUrl: "https://openai.com/favicon.ico",
-          softFail: true,
-          failStatus: "浏览器受限"
-        },
-        {
-          serviceId: "gemini",
-          host: "gemini.google.com",
-          probeUrl: "https://gemini.google.com/favicon.ico",
-          softFail: true,
-          failStatus: "浏览器受限"
+          label: "Wikipedia.org",
+          host: "wikipedia.org",
+          probeUrl: "https://www.wikipedia.org/static/favicon/wikipedia.ico"
         }
       ]
     },
     {
-      title: "全球站点 · 常被墙",
-      sites: [
-        { serviceId: "google", host: "google.com", probeUrl: "https://www.gstatic.com/generate_204" },
-        { serviceId: "youtube", host: "youtube.com", probeUrl: "https://www.youtube.com/favicon.ico" },
-        { host: "x.com", probeUrl: "https://x.com/favicon.ico" },
-        { host: "wikipedia.org", probeUrl: "https://www.wikipedia.org/static/favicon/wikipedia.ico" }
-      ]
-    },
-    {
       title: "中国站点",
+      blocking: true,
       sites: [
-        { host: "baidu.com", probeUrl: "https://www.baidu.com/favicon.ico", softFail: true, failStatus: "未确认" },
-        { host: "qq.com", probeUrl: "https://www.qq.com/favicon.ico", softFail: true, failStatus: "未确认" },
-        { host: "taobao.com", probeUrl: "https://www.taobao.com/favicon.ico", softFail: true, failStatus: "未确认" },
-        { host: "bilibili.com", probeUrl: "https://www.bilibili.com/favicon.ico", softFail: true, failStatus: "未确认" }
+        {
+          label: "Baidu.com",
+          host: "baidu.com",
+          probeUrl: "https://www.baidu.com/favicon.ico",
+          softFail: true,
+          failStatus: "未确认"
+        },
+        {
+          label: "QQ.com",
+          host: "qq.com",
+          probeUrl: "https://www.qq.com/favicon.ico",
+          softFail: true,
+          failStatus: "未确认"
+        },
+        {
+          label: "TaoBao.com",
+          host: "taobao.com",
+          probeUrl: "https://www.taobao.com/favicon.ico",
+          softFail: true,
+          failStatus: "未确认"
+        },
+        {
+          label: "BiliBili.com",
+          host: "bilibili.com",
+          probeUrl: "https://www.bilibili.com/favicon.ico",
+          softFail: true,
+          failStatus: "未确认"
+        }
       ]
     }
   ];
@@ -220,126 +229,166 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   var IDENTITY_SERVICE_CATALOG = {
     google: {
       serviceId: "google",
-      label: "Google",
+      label: "Google.com",
       host: "google.com",
-      probeUrl: "https://www.gstatic.com/generate_204"
+      probeUrl: "https://www.google.com/generate_204",
+      fallbackUrl: "https://www.gstatic.com/generate_204"
     },
     youtube: {
       serviceId: "youtube",
-      label: "YouTube",
+      label: "YouTube.com",
       host: "youtube.com",
-      probeUrl: "https://www.youtube.com/favicon.ico"
+      probeUrl: "https://www.youtube.com/generate_204",
+      fallbackUrl: "https://www.youtube.com/favicon.ico"
+    },
+    whatsapp: {
+      serviceId: "whatsapp",
+      label: "WhatsApp.com",
+      host: "whatsapp.com",
+      probeUrl: "https://web.whatsapp.com/favicon.ico",
+      fallbackUrl: "https://www.whatsapp.com/favicon.ico"
+    },
+    reddit: {
+      serviceId: "reddit",
+      label: "Reddit.com",
+      host: "reddit.com",
+      probeUrl: "https://www.reddit.com/favicon.ico",
+      fallbackUrl: "https://www.redditstatic.com/desktop2x/img/favicon/favicon-32x32.png"
     },
     netflix: {
       serviceId: "netflix",
-      label: "Netflix",
+      label: "Netflix.com",
       host: "netflix.com",
       probeUrl: "https://www.netflix.com/favicon.ico"
     },
     chatgpt: {
       serviceId: "chatgpt",
-      label: "ChatGPT",
+      label: "ChatGPT.com",
       host: "chatgpt.com",
       probeUrl: "https://chatgpt.com/favicon.ico"
     },
     tiktok: {
       serviceId: "tiktok",
-      label: "TikTok",
+      label: "TikTok.com",
       host: "tiktok.com",
       probeUrl: "https://www.tiktok.com/favicon.ico"
     },
     instagram: {
       serviceId: "instagram",
-      label: "Instagram",
+      label: "Instagram.com",
       host: "instagram.com",
-      probeUrl: "https://www.instagram.com/favicon.ico"
+      probeUrl: "https://www.instagram.com/favicon.ico",
+      fallbackUrl: "https://static.cdninstagram.com/rsrc.php/y4/r/QaBlI0OZiks.ico"
+    },
+    x: {
+      serviceId: "x",
+      label: "X.com",
+      host: "x.com",
+      probeUrl: "https://x.com/favicon.ico",
+      fallbackUrl: "https://abs.twimg.com/favicons/twitter.3.ico",
+      mode: "cors"
     },
     google_ads: {
       serviceId: "google_ads",
-      label: "Google Ads",
+      label: "Ads.Google.com",
       host: "ads.google.com",
       probeUrl: "https://ads.google.com/favicon.ico"
     },
     meta_ads: {
       serviceId: "meta_ads",
-      label: "Meta Ads",
+      label: "Facebook.com",
       host: "facebook.com",
       probeUrl: "https://www.facebook.com/favicon.ico"
     },
     shopify: {
       serviceId: "shopify",
-      label: "Shopify",
+      label: "Shopify.com",
       host: "shopify.com",
-      probeUrl: "https://www.shopify.com/favicon.ico"
+      probeUrl: "https://www.shopify.com/favicon.ico",
+      fallbackUrl: "https://cdn.shopify.com/static/shopify-favicon.png",
+      mode: "cors"
     },
     amazon: {
       serviceId: "amazon",
-      label: "Amazon",
+      label: "Amazon.com",
       host: "amazon.com",
-      probeUrl: "https://www.amazon.com/favicon.ico"
+      probeUrl: "https://www.amazon.com/favicon.ico",
+      mode: "cors"
     },
     paypal: {
       serviceId: "paypal",
-      label: "PayPal",
+      label: "PayPal.com",
       host: "paypal.com",
-      probeUrl: "https://www.paypal.com/favicon.ico"
+      probeUrl: "https://www.paypal.com/favicon.ico",
+      fallbackUrl: "https://www.paypalobjects.com/webstatic/icon/favicon.ico"
     },
     stripe: {
       serviceId: "stripe",
-      label: "Stripe",
+      label: "Stripe.com",
       host: "stripe.com",
-      probeUrl: "https://stripe.com/favicon.ico"
+      probeUrl: "https://dashboard.stripe.com/healthcheck",
+      fallbackUrl: "https://stripe.com/healthcheck",
+      mode: "cors"
     },
     openai: {
       serviceId: "openai",
-      label: "OpenAI",
+      label: "OpenAI.com",
       host: "openai.com",
       probeUrl: "https://openai.com/favicon.ico"
     },
     claude: {
       serviceId: "claude",
-      label: "Claude",
+      label: "Claude.ai",
       host: "claude.ai",
       probeUrl: "https://claude.ai/favicon.ico"
     },
     gemini: {
       serviceId: "gemini",
-      label: "Gemini",
+      label: "Gemini.Google.com",
       host: "gemini.google.com",
       probeUrl: "https://gemini.google.com/favicon.ico"
     },
     cursor: {
       serviceId: "cursor",
-      label: "Cursor",
+      label: "Cursor.com",
       host: "cursor.com",
       probeUrl: "https://www.cursor.com/favicon.ico"
     },
     perplexity: {
       serviceId: "perplexity",
-      label: "Perplexity",
+      label: "Perplexity.ai",
       host: "perplexity.ai",
       probeUrl: "https://www.perplexity.ai/favicon.ico"
     },
     github: {
       serviceId: "github",
-      label: "GitHub",
+      label: "GitHub.com",
       host: "github.com",
       probeUrl: "https://github.com/favicon.ico"
     },
     npm: {
       serviceId: "npm",
-      label: "npm Registry",
+      label: "registry.npmjs.org",
       host: "registry.npmjs.org",
       probeUrl: "https://registry.npmjs.org/-/ping",
       mode: "cors"
     },
     pypi: {
       serviceId: "pypi",
-      label: "PyPI",
+      label: "PyPI.org",
       host: "pypi.org",
       probeUrl: "https://pypi.org/static/images/logo-small.2a411bc6.svg"
     }
   };
+
+  var CONNECTIVITY_PROFILE_GROUPS = [
+    { profileId: "generic", title: "🌐 通用数字身份分析 · 目标服务" },
+    { profileId: "ai_worker", title: "AI 服务" },
+    { profileId: "tiktok_creator", title: "🎬 自媒体创作者 · 目标服务" },
+    { profileId: "cross_border_seller", title: "🛒 跨境商家 · 目标服务" }
+  ];
+  // 三个站点 worker 为主探针切换官方备用端点预留一个网络槽，浏览器层峰值仍不超过四路。
+  var CONN_WORKER_LIMIT = 3;
 
   Object.keys(IDENTITY_SERVICE_CATALOG).forEach(function (serviceId) {
     IDENTITY_SERVICE_CATALOG[serviceId].softFail = true;
@@ -519,24 +568,80 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     return getIdentityProfile(state.identityProfileId || state.selectedIdentityId || "generic");
   }
 
+  function scoredProfileServiceIds(profile) {
+    var ids = [];
+    (profile && Array.isArray(profile.serviceGroups) ? profile.serviceGroups : []).forEach(function (group) {
+      (Array.isArray(group.serviceIds) ? group.serviceIds : []).forEach(function (serviceId) {
+        if (ids.indexOf(serviceId) < 0) {
+          ids.push(serviceId);
+        }
+      });
+    });
+    return ids;
+  }
+
   function activeConnTargets() {
-    var profile = activeIdentityProfile();
-    var serviceIds = profile && Array.isArray(profile.serviceIds) ? profile.serviceIds : [];
-    var profileSites = serviceIds
-      .map(function (serviceId) {
-        return IDENTITY_SERVICE_CATALOG[serviceId];
-      })
-      .filter(Boolean);
-    if (!profileSites.length) {
-      return connTargets;
+    var activeProfile = activeIdentityProfile();
+    var activeProfileId = activeProfile ? activeProfile.id : "generic";
+    var configuredProfileIds = CONNECTIVITY_PROFILE_GROUPS.map(function (config) {
+      return config.profileId;
+    });
+    var groups = CONNECTIVITY_PROFILE_GROUPS.map(function (config) {
+      var profile = getIdentityProfile(config.profileId);
+      var isActiveProfile = config.profileId === activeProfileId;
+      var scoredServiceIds = scoredProfileServiceIds(profile);
+      var sites = (profile && Array.isArray(profile.serviceIds) ? profile.serviceIds : [])
+        .map(function (serviceId) {
+          var service = IDENTITY_SERVICE_CATALOG[serviceId];
+          return service
+            ? Object.assign({}, service, {
+                blocking: isActiveProfile && scoredServiceIds.indexOf(serviceId) >= 0
+              })
+            : null;
+        })
+        .filter(Boolean);
+      return {
+        title: config.title,
+        identityProfileId: config.profileId,
+        blocking: sites.some(function (site) {
+          return site.blocking;
+        }),
+        sites: sites
+      };
+    }).filter(function (group) {
+      return group.sites.length > 0;
+    });
+
+    // 隐藏但仍兼容的画像（例如美国普通用户）只有在实际选中时才追加，避免默认页面堆叠无关分组。
+    if (activeProfile && configuredProfileIds.indexOf(activeProfile.id) < 0 && Array.isArray(activeProfile.serviceIds)) {
+      var activeScoredServiceIds = scoredProfileServiceIds(activeProfile);
+      groups.unshift({
+        title: (activeProfile.icon || "") + " " + activeProfile.name + " · 目标服务",
+        identityProfileId: activeProfile.id,
+        blocking: true,
+        sites: activeProfile.serviceIds
+          .map(function (serviceId) {
+            var service = IDENTITY_SERVICE_CATALOG[serviceId];
+            return service
+              ? Object.assign({}, service, {
+                  blocking: activeScoredServiceIds.indexOf(serviceId) >= 0
+                })
+              : null;
+          })
+          .filter(Boolean)
+      });
     }
-    return [
-      {
-        title: (profile.icon || "") + " " + profile.name + " · 目标服务",
-        identityProfileId: profile.id,
-        sites: profileSites
-      }
-    ].concat(connTargets);
+    return groups.concat(
+      connTargets.map(function (group) {
+        return Object.assign({}, group, {
+          sites: group.sites.map(function (site) {
+            return Object.assign({}, site, {
+              blocking: group.blocking !== false
+            });
+          })
+        });
+      })
+    );
   }
 
   function pendingConnGroups() {
@@ -544,11 +649,14 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       return {
         title: group.title,
         identityProfileId: group.identityProfileId || "",
+        blocking: group.blocking !== false,
         sites: group.sites.map(function (site) {
           return {
             serviceId: site.serviceId || "",
             label: site.label || site.host,
             host: site.host,
+            probeUrl: site.probeUrl || "https://" + site.host + "/favicon.ico",
+            blocking: site.blocking !== false,
             code: "pending",
             status: "等待检测"
           };
@@ -572,6 +680,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     aistatus: 0,
     audio: 0
   };
+  var activeConnProbeToken = 0;
 
   var activeRunAbortControllers = [];
   var activeRunCleanups = [];
@@ -611,6 +720,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     var cleanups = activeRunCleanups.slice();
     activeRunAbortControllers = [];
     activeRunCleanups = [];
+    activeConnProbeToken = 0;
     cleanups.forEach(function (cleanup) {
       try {
         cleanup();
@@ -648,12 +758,16 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   function connReady() {
     return Boolean(
       state.conn.groups.length &&
-        !state.conn.running &&
-        state.conn.groups.every(function (group) {
-          return group.sites.every(function (site) {
-            return site.code !== "pending";
-          });
-        })
+        state.conn.groups
+          .every(function (group) {
+            return group.sites
+              .filter(function (site) {
+                return site.blocking !== false;
+              })
+              .every(function (site) {
+                return site.code !== "pending";
+              });
+          })
     );
   }
 
@@ -1248,7 +1362,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           return;
         }
         var current = resultMap[site.serviceId];
-        var rank = { ok: 4, bad: 3, unknown: 2, pending: 1 };
+        var rank = { ok: 5, limited: 4, bad: 3, unknown: 2, pending: 1 };
         if (!current || (rank[site.code] || 0) > (rank[current.code] || 0)) {
           resultMap[site.serviceId] = site;
         }
@@ -1274,6 +1388,10 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     var ok = results.filter(function (item) {
       return item.code === "ok";
     });
+    var limited = results.filter(function (item) {
+      return item.code === "limited";
+    });
+    var reached = ok.concat(limited);
     var explicitBad = results.filter(function (item) {
       return item.code === "bad";
     });
@@ -1282,13 +1400,25 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     });
     var evidence = results
       .map(function (item) {
-        return item.label + "：" + (item.code === "ok" ? "浏览器可达" : item.status || "未确认");
+        if (item.code === "ok") {
+          return item.label + "：浏览器可达";
+        }
+        if (item.code === "limited") {
+          return item.label + "：" +
+            (/^官方备用资源/.test(item.status || "") ? item.status : "已连接（响应状态受限）");
+        }
+        return item.label + "：" + (item.status || "未确认");
       })
       .join("；");
-    if (ok.length === results.length) {
-      return identitySignal("match", 0.82, evidence + "；仅代表浏览器侧可达性，不代表区域解锁或账号状态", "目标服务可达性探测");
+    if (reached.length === results.length) {
+      return identitySignal(
+        "match",
+        limited.length ? 0.72 : 0.82,
+        evidence + "；仅代表浏览器侧连接结果，不代表区域解锁、账号或支付功能",
+        "目标服务可达性探测"
+      );
     }
-    if (ok.length) {
+    if (reached.length) {
       return identitySignal("partial", 0.68, evidence + "；部分项目受浏览器或网络策略限制", "目标服务可达性探测");
     }
     if (explicitBad.length && !unresolved.length) {
@@ -3325,8 +3455,13 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   }
 
   function runConn() {
+    // 同一轮连通检测只允许一个受限 worker 池。连续点击不会叠加第三方请求。
+    if (activeConnProbeToken) {
+      return false;
+    }
     var runId = state.runId;
     var token = startModuleRun("conn");
+    activeConnProbeToken = token;
     var targets = activeConnTargets();
     state.conn = {
       running: true,
@@ -3334,11 +3469,14 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         return {
           title: group.title,
           identityProfileId: group.identityProfileId || "",
+          blocking: group.blocking !== false,
           sites: group.sites.map(function (site) {
             return {
               serviceId: site.serviceId || "",
               label: site.label || site.host,
               host: site.host,
+              probeUrl: site.probeUrl || "https://" + site.host + "/favicon.ico",
+              blocking: site.blocking !== false,
               code: "pending",
               status: "检测中"
             };
@@ -3347,21 +3485,59 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       })
     };
     render();
-    var probedHosts = {};
+    var probeByHost = {};
     targets.forEach(function (group) {
       group.sites.forEach(function (site) {
-        if (probedHosts[site.host]) {
-          return;
+        if (!probeByHost[site.host]) {
+          probeByHost[site.host] = {
+            site: site,
+            blocking: site.blocking !== false
+          };
+        } else if (site.blocking !== false) {
+          probeByHost[site.host].blocking = true;
         }
-        probedHosts[site.host] = true;
-        probeHost(site, runId).then(function (result) {
+      });
+    });
+    var queue = Object.keys(probeByHost)
+      .map(function (host) {
+        return probeByHost[host];
+      })
+      .sort(function (a, b) {
+        return Number(b.blocking) - Number(a.blocking);
+      });
+    var nextIndex = 0;
+    function runNextProbe() {
+      if (!isModuleRun("conn", token, runId) || nextIndex >= queue.length) {
+        return Promise.resolve();
+      }
+      var entry = queue[nextIndex++];
+      return probeHost(entry.site, runId)
+        .then(function (result) {
           if (!isModuleRun("conn", token, runId)) {
             return;
           }
-          updateConnHost(site.host, result.code, result.status);
-        });
-      });
-    });
+          updateConnHost(entry.site.host, result.code, result.status);
+        })
+        .then(runNextProbe);
+    }
+    var workers = [];
+    for (var workerIndex = 0; workerIndex < Math.min(CONN_WORKER_LIMIT, queue.length); workerIndex += 1) {
+      workers.push(runNextProbe());
+    }
+    if (!workers.length) {
+      activeConnProbeToken = 0;
+      state.conn.running = false;
+      render();
+      return true;
+    }
+    function releaseConnWorkerPool() {
+      if (activeConnProbeToken === token) {
+        activeConnProbeToken = 0;
+        render();
+      }
+    }
+    Promise.all(workers).then(releaseConnWorkerPool, releaseConnWorkerPool);
+    return true;
   }
 
   function probeHost(site, runId) {
@@ -3372,18 +3548,39 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       var controller = createRunAbortController();
       var timer = window.setTimeout(function () {
         controller.abort();
-        finish(false);
+        finish({ connected: false, confirmed: false, transportFailed: true });
       }, 6500);
-      function settle(ok) {
+      function settle(result) {
         if (done) {
           return;
         }
         done = true;
         window.clearTimeout(timer);
-        if (ok) {
+        var elapsed = Math.max(1, Math.round(performance.now() - startedAt));
+        if (result && result.httpError) {
           resolve({
-            code: "ok",
-            status: "可达 " + Math.max(1, Math.round(performance.now() - startedAt)) + "ms"
+            code: "bad",
+            status:
+              (result.viaFallback ? "官方备用资源 · " : "已连接 · ") +
+              "HTTP " +
+              result.httpStatus +
+              " · 服务响应异常 · " +
+              elapsed +
+              "ms"
+          });
+          return;
+        }
+        if (result && result.connected) {
+          if (result.viaFallback) {
+            resolve({
+              code: "limited",
+              status: "官方备用资源" + (result.confirmed ? "可达 · " : "已连接 · 状态受限 · ") + elapsed + "ms"
+            });
+            return;
+          }
+          resolve({
+            code: result.confirmed ? "ok" : "limited",
+            status: (result.confirmed ? "可达 · " : "已连接 · 状态受限 · ") + elapsed + "ms"
           });
           return;
         }
@@ -3392,63 +3589,98 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           status: site.failStatus || "不可达"
         });
       }
-      function finish(ok) {
+      function finish(result) {
         if (done) {
           return;
         }
         if (!isCurrentRun(runId)) {
-          settle(false);
+          settle({ connected: false, confirmed: false });
           return;
         }
-        if (ok) {
-          settle(true);
+        if (result && result.connected) {
+          settle(result);
           return;
         }
-        if (!fallbackStarted && site.fallbackUrl) {
-          // 主探测失败（含超时中止）后改用 fallback。必须用新的 controller 和独立超时：
+        if (!fallbackStarted && site.fallbackUrl && result && result.transportFailed) {
+          // 只有网络、CORS 或超时导致无法取得响应时才尝试备用端点。
+          // 已经可读取的 HTTP 错误必须原样保留，不能被静态资源成功掩盖。
+          // fallback 必须用新的 controller 和独立超时：
           // 复用已 abort 的 signal 会让 fallback 立即失败。
           fallbackStarted = true;
-          var fallbackController = createRunAbortController();
-          var fallbackTimer = window.setTimeout(function () {
-            fallbackController.abort();
-          }, 4000);
-          probeFetch(site.fallbackUrl, "no-cors", fallbackController.signal).then(function (fallbackOk) {
-            window.clearTimeout(fallbackTimer);
-            releaseRunAbortController(fallbackController);
-            settle(fallbackOk);
+          // 下一任务再启动备用请求，让浏览器先完成主请求的失败/取消事件并释放网络槽。
+          var fallbackStartTimer = window.setTimeout(function () {
+            releaseFallbackStartCleanup();
+            if (!isCurrentRun(runId)) {
+              settle({ connected: false, confirmed: false, transportFailed: true });
+              return;
+            }
+            var fallbackController = createRunAbortController();
+            var fallbackTimer = window.setTimeout(function () {
+              fallbackController.abort();
+            }, 4000);
+            probeFetch(site.fallbackUrl, site.fallbackMode || "no-cors", fallbackController.signal).then(function (fallbackResult) {
+              window.clearTimeout(fallbackTimer);
+              // 只需要连接与响应头信号；立即终止未读取的正文传输。
+              fallbackController.abort();
+              releaseRunAbortController(fallbackController);
+              fallbackResult.viaFallback = true;
+              settle(fallbackResult);
+            });
+          }, 0);
+          var releaseFallbackStartCleanup = trackRunCleanup(function () {
+            window.clearTimeout(fallbackStartTimer);
+            settle({ connected: false, confirmed: false, transportFailed: true });
           });
           return;
         }
         if (!fallbackStarted) {
-          settle(false);
+          settle(result || { connected: false, confirmed: false, transportFailed: true });
         }
         // fallback 已在途：主请求被 abort 后的迟到失败回调在此忽略，等 fallback 结算。
       }
-      probeFetch(site.probeUrl || "https://" + site.host + "/favicon.ico", site.mode || "no-cors", controller.signal).then(function (ok) {
+      probeFetch(site.probeUrl || "https://" + site.host + "/favicon.ico", site.mode || "no-cors", controller.signal).then(function (result) {
+        // 只需要连接与响应头信号；立即终止未读取的正文传输。
+        controller.abort();
         releaseRunAbortController(controller);
-        finish(ok);
+        finish(result);
       });
     });
   }
 
   function probeFetch(url, mode, signal) {
-    return fetch(addCacheBust(url), {
+    var requestMode = mode || "no-cors";
+    return fetch(url, {
         cache: "no-store",
-        mode: mode || "no-cors",
+        mode: requestMode,
         referrerPolicy: "no-referrer",
         signal: signal
       })
         .then(function (response) {
-          // no-cors 响应是 opaque，无法读取 HTTP 状态；CORS 探针则必须确认 2xx。
-          return (mode || "no-cors") === "cors" ? response.ok : true;
+          // CORS 响应只有 2xx 才能确认可达；opaque 响应只能确认请求链路已建立，不能读取 HTTP 状态。
+          if (requestMode !== "cors") {
+            return { connected: true, confirmed: false, readable: false, transportFailed: false };
+          }
+          if (response.ok) {
+            return {
+              connected: true,
+              confirmed: true,
+              readable: true,
+              httpStatus: response.status,
+              transportFailed: false
+            };
+          }
+          return {
+            connected: true,
+            confirmed: false,
+            readable: true,
+            httpError: true,
+            httpStatus: response.status,
+            transportFailed: false
+          };
         })
         .catch(function () {
-          return false;
+          return { connected: false, confirmed: false, readable: false, transportFailed: true };
         });
-  }
-
-  function addCacheBust(url) {
-    return url + (url.indexOf("?") === -1 ? "?" : "&") + "_=" + Date.now();
   }
 
   function updateConnHost(host, code, label) {
@@ -3487,13 +3719,13 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     var mainlandReachable = Boolean(
       mainland &&
         mainland.sites.some(function (site) {
-          return site.code === "ok";
+          return site.code === "ok" || site.code === "limited";
         })
     );
     var globalReachable = Boolean(
       globalWall &&
         globalWall.sites.some(function (site) {
-          return site.code === "ok";
+          return site.code === "ok" || site.code === "limited";
         })
     );
     var globalPending = Boolean(
@@ -5651,7 +5883,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         escapeHtml(sectionMatchLabel) +
         "</h3><span>" +
         signals.length +
-        ' 项信号，点击查看依据</span></div><div class="identity-section-match-grid">' +
+        ' 项信号</span></div><div class="identity-section-match-grid">' +
         signals.map(renderEmbeddedIdentitySignal).join("") +
         "</div>";
       panel.insertBefore(wrapper, panel.firstChild);
@@ -6397,11 +6629,13 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     );
   }
 
-  function renderSectionAction(label, action) {
+  function renderSectionAction(label, action, disabled) {
     return (
       '<button class="section-action" type="button" data-action="' +
       escapeHtml(action) +
-      '">' +
+      '"' +
+      (disabled ? ' disabled aria-disabled="true"' : "") +
+      '>' +
       escapeHtml(label) +
       "</button>"
     );
@@ -6521,6 +6755,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           return {
             title: group.title,
             identityProfileId: group.identityProfileId || "",
+            blocking: group.blocking !== false,
             sites: group.sites.map(function (site) {
               return {
                 serviceId: site.serviceId || "",
@@ -6534,7 +6769,12 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         });
     return (
       '<section class="section" id="sec-conn" aria-labelledby="sec-conn-title">' +
-      renderSectionHead("网络连通", "是否大陆直连", renderSectionAction("↻ 重测", "run-conn"), "sec-conn-title") +
+      renderSectionHead(
+        "网络连通",
+        "是否大陆直连",
+        renderSectionAction("↻ 重测", "run-conn", state.conn.running),
+        "sec-conn-title"
+      ) +
       '<div class="panel conn-panel"><div class="conn-panel-body">' +
       groups
         .map(function (group) {
@@ -6544,11 +6784,19 @@ import { analyzeIdentity } from "./identityAnalysis.js";
             '</div><div class="conn-grid">' +
             group.sites
               .map(function (site) {
-                var tone = site.code === "ok" ? "green" : site.code === "bad" ? "red" : "pending";
+                var tone = site.code === "ok" ? "green" : site.code === "limited" ? "amber" : site.code === "bad" ? "red" : "pending";
                 return (
-                  '<div class="conn-card"><span class="dot ' +
+                  '<div class="conn-card" data-conn-host="' +
+                  escapeHtml(site.host) +
+                  '" data-service-id="' +
+                  escapeHtml(site.serviceId || "") +
+                  '" data-probe-url="' +
+                  escapeHtml(site.probeUrl || "") +
+                  '"><span class="dot ' +
                   tone +
-                  '"></span><span class="conn-card-host">' +
+                  '"></span><span class="conn-card-host" title="' +
+                  escapeHtml(site.label || site.host) +
+                  '">' +
                   escapeHtml(site.label || site.host) +
                   '</span><span class="conn-card-status ' +
                   tone +
@@ -6562,7 +6810,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           );
         })
         .join("") +
-      '<p class="conn-note">浏览器探针只判断能否建立跨站请求，不读取内容、不带 referrer。AI 服务和部分中国站点会拦截跨源探针；这类结果显示为“浏览器受限”或“未确认”，不等同于网站不可用。大陆探针只依据全球站点 · 常被墙与中国站点的可达性，AI 服务仅用于排障展示，不参与大陆直连扣分。</p></div></div></section>'
+      '<p class="conn-note">浏览器探针只发起只读 GET 请求，不读取业务内容、不带 referrer。“可达”表示官方端点返回可确认的 2xx；“已连接 · 状态受限”表示跨站请求已建立，但浏览器无法读取 HTTP 状态；“服务响应异常”表示端点返回了可读取的非 2xx。Nms 是本轮探针的连接到响应头耗时；若启用备用端点，则计至其终态。该耗时包含 DNS、TLS、服务端与浏览器调度，不是 Ping，也不是完整下载耗时；结果不代表区域解锁、账号或支付功能。大陆探针只依据全球站点 · 常被墙与中国站点的连接结果，其他目标服务仅用于环境分析。</p></div></div></section>'
     );
   }
 

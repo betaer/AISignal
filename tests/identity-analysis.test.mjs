@@ -116,10 +116,10 @@ test("\u753b\u50cf\u914d\u7f6e\u4e0e\u5168\u5206\u6bb5\u6587\u6848\u4e0d\u5305\u
 
 test("画像精确声明需求中的服务及其评分分组", () => {
   const expected = {
-    generic: { services: ["google", "youtube", "chatgpt"] },
+    generic: { services: ["google", "youtube", "whatsapp", "reddit"] },
     us_consumer: { consumer_services: ["google", "youtube", "netflix", "chatgpt"] },
     tiktok_creator: {
-      creator_services: ["tiktok", "instagram", "youtube"],
+      creator_services: ["tiktok", "youtube", "instagram", "x"],
       ads_environment: ["google_ads", "meta_ads"],
     },
     cross_border_seller: { commerce_services: ["shopify", "amazon", "paypal", "stripe"] },
@@ -134,6 +134,23 @@ test("画像精确声明需求中的服务及其评分分组", () => {
       groups,
     );
   }
+
+  assert.deepEqual(getIdentityProfile("generic").serviceIds, ["google", "youtube", "whatsapp", "reddit"]);
+  assert.equal(getIdentityProfile("generic").serviceIds.includes("chatgpt"), false);
+  assert.deepEqual(getIdentityProfile("tiktok_creator").serviceIds, [
+    "tiktok",
+    "youtube",
+    "instagram",
+    "x",
+    "google_ads",
+    "meta_ads",
+  ]);
+  assert.deepEqual(getIdentityProfile("cross_border_seller").serviceIds, [
+    "shopify",
+    "amazon",
+    "paypal",
+    "stripe",
+  ]);
 });
 
 test("面向用户的画像名称覆盖更广泛的使用场景", () => {

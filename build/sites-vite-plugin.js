@@ -3,7 +3,9 @@ import { dirname, resolve } from "node:path";
 
 const STATIC_FILES = [
   "404.html",
+  "index-20260719.html",
   "app.min.js",
+  "styles.min.css",
   "favicon.svg",
   "assets",
   "demo",

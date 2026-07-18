@@ -225,6 +225,21 @@ import { analyzeIdentity } from "../identityAnalysis.js";
       host: "youtube.com",
       probeUrl: "https://www.youtube.com/favicon.ico"
     },
+    whatsapp: {
+      serviceId: "whatsapp",
+      label: "WhatsApp.com",
+      host: "whatsapp.com",
+      probeUrl: "https://web.whatsapp.com/favicon.ico",
+      fallbackUrl: "https://www.whatsapp.com/favicon.ico"
+    },
+    reddit: {
+      serviceId: "reddit",
+      label: "Reddit.com",
+      host: "reddit.com",
+      probeUrl: "https://www.redditstatic.com/desktop2x/img/favicon/favicon-32x32.png",
+      fallbackUrl: "https://www.reddit.com/favicon.ico",
+      mode: "cors"
+    },
     netflix: {
       serviceId: "netflix",
       label: "Netflix",
@@ -248,6 +263,14 @@ import { analyzeIdentity } from "../identityAnalysis.js";
       label: "Instagram",
       host: "instagram.com",
       probeUrl: "https://www.instagram.com/favicon.ico"
+    },
+    x: {
+      serviceId: "x",
+      label: "X.com",
+      host: "x.com",
+      probeUrl: "https://x.com/favicon.ico",
+      fallbackUrl: "https://abs.twimg.com/favicons/twitter.3.ico",
+      mode: "cors"
     },
     google_ads: {
       serviceId: "google_ads",

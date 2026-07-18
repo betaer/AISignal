@@ -104,6 +104,33 @@ test("serves the browser bundle through the assets binding", async () => {
   assert.doesNotMatch(javascript, /betaer\.github\.io\/aisignalguard/i);
 });
 
+test("serves the dated wide-diagnostics page with its raw shared stylesheet", async () => {
+  const worker = await loadWorker();
+  const env = { ASSETS: mockAssets() };
+  const htmlResponse = await worker.fetch(
+    new Request("https://ai-signal-guard.example/index-20260719.html", {
+      headers: { accept: "text/html" },
+    }),
+    env,
+    context(),
+  );
+
+  assert.equal(htmlResponse.status, 200);
+  const html = await htmlResponse.text();
+  assert.match(html, /<body class="dated-wide-diagnostics" data-app-stage="select">/);
+  assert.match(html, /href="styles\.min\.css\?v=/);
+  assert.match(html, /src="app\.min\.js\?v=/);
+
+  const stylesheetResponse = await worker.fetch(
+    new Request("https://ai-signal-guard.example/styles.min.css"),
+    env,
+    context(),
+  );
+  assert.equal(stylesheetResponse.status, 200);
+  assert.match(stylesheetResponse.headers.get("content-type") || "", /^text\/css/);
+  assert.ok((await stylesheetResponse.text()).length > 50_000);
+});
+
 test("serves the isolated identity demo and its browser assets", async () => {
   const worker = await loadWorker();
   const env = { ASSETS: mockAssets() };

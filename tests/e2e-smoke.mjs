@@ -264,6 +264,7 @@ const REPORT_WEBRTC_INIT = `
  * opts.*TargetResponse: 为显式地址请求伪造响应，用于验证目标 IP 完整性。
  * opts.blockedServiceHosts: 让指定服务探针失败，用于验证待确认身份信号。
  * opts.errorServiceHosts: 让指定 CORS 服务探针返回 HTTP 503，用于验证状态码处理。
+ * opts.serviceDelays: { [hostname]: ms } 为服务探针增加确定性响应延迟，用于验证浏览器响应耗时。
  */
 async function routeFixtures(target, baseOrigin, opts = {}) {
   const flags = opts.flags || {};
@@ -292,7 +293,17 @@ async function routeFixtures(target, baseOrigin, opts = {}) {
       return route.abort().catch(() => {});
     }
     if ((opts.errorServiceHosts || []).includes(host)) {
-      return route.fulfill({ status: 503, contentType: "text/plain", body: "unavailable" }).catch(() => {});
+      return route
+        .fulfill({
+          status: 503,
+          contentType: "text/plain",
+          headers: { "access-control-allow-origin": "*" },
+          body: "unavailable",
+        })
+        .catch(() => {});
+    }
+    if (opts.serviceDelays && Number(opts.serviceDelays[host]) > 0) {
+      await sleep(Number(opts.serviceDelays[host]));
     }
     const json = (body, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }).catch(() => {});
@@ -421,7 +432,9 @@ async function routeFixtures(target, baseOrigin, opts = {}) {
       return json({ stargazers_count: 42 });
     }
     // 其余外部请求（favicon 探针、generate_204、GA 等）统一返回 204
-    return route.fulfill({ status: 204, body: "" }).catch(() => {});
+    return route
+      .fulfill({ status: 204, headers: { "access-control-allow-origin": "*" }, body: "" })
+      .catch(() => {});
   });
 }
 
@@ -495,6 +508,154 @@ async function scoreNodeSnapshot(page) {
 
 // ---------- 场景定义 ----------
 const scenarios = [
+  {
+    name: "日期版诊断宽度：出口 IP 后续内容对齐、下划线统一且原首页隔离",
+    async run({ browser, base, ok }) {
+      const datedPage = await browser.newPage({
+        locale: "en-US",
+        timezoneId: "America/Los_Angeles",
+        viewport: { width: 1440, height: 1000 },
+      });
+      await routeFixtures(datedPage, base.origin, { autoStart: false });
+      const datedUrl = new URL("index-20260719.html", base);
+      const datedResponse = await datedPage.goto(datedUrl.href);
+      const datedStatus = datedResponse?.status() || 0;
+      ok("dated layout page responds successfully", datedStatus === 200, `status=${datedStatus}`);
+      if (datedStatus !== 200) {
+        await datedPage.close();
+        return;
+      }
+
+      ok(
+        "dated layout page exposes its isolated layout marker",
+        await datedPage.locator("body").evaluate((body) => body.classList.contains("dated-wide-diagnostics")),
+      );
+      await datedPage.locator("#identity-generic").click();
+      await datedPage.waitForSelector("#analysis-workspace:not([hidden])");
+      await datedPage.waitForSelector("#section-root #sec-ip");
+      await datedPage.waitForSelector(".status-link.green");
+
+      const desktopLayout = await datedPage.evaluate(() => {
+        const result = document.querySelector("#identity-result-root").getBoundingClientRect();
+        const sections = document.querySelector(".analysis-workspace > #section-root").getBoundingClientRect();
+        return {
+          result: { left: result.left, right: result.right, width: result.width },
+          sections: { left: sections.left, right: sections.right, width: sections.width },
+          leftDelta: Math.abs(result.left - sections.left),
+          rightDelta: Math.abs(result.right - sections.right),
+        };
+      });
+      ok(
+        "dated desktop aligns every diagnostic section with the 960px result content",
+        desktopLayout.result.width >= 959 &&
+          desktopLayout.sections.width >= 959 &&
+          desktopLayout.leftDelta <= 1 &&
+          desktopLayout.rightDelta <= 1,
+        JSON.stringify(desktopLayout),
+      );
+
+      const underlineAudit = await datedPage.evaluate(() => {
+        const read = (selector) => {
+          const node = document.querySelector(selector);
+          const style = node && getComputedStyle(node);
+          return node && style
+            ? {
+                selector,
+                line: style.textDecorationLine,
+                color: style.color,
+                decorationColor: style.textDecorationColor,
+                thickness: style.textDecorationThickness,
+                offset: style.textUnderlineOffset,
+                borderBottomWidth: style.borderBottomWidth,
+                text: node.textContent.replace(/\s+/g, " ").trim(),
+              }
+            : null;
+        };
+        return {
+          reselect: read("#network-risk-reselect"),
+          scoreLink: read(".score-links .underlink"),
+          footerLink: read(".site-footer a"),
+          statusLink: read(".status-link.green"),
+          signalLabels: Array.from(document.querySelectorAll(".identity-section-match-head > span")).map((node) =>
+            node.textContent.replace(/\s+/g, " ").trim(),
+          ),
+          hasRedundantPrompt: document.body.textContent.includes("点击查看依据"),
+        };
+      });
+      const neutralLinks = [underlineAudit.reselect, underlineAudit.scoreLink, underlineAudit.footerLink];
+      ok(
+        "reselect, score and footer links share the same 1px / 4px underline geometry",
+        neutralLinks.every(
+          (item) =>
+            item &&
+            item.line.includes("underline") &&
+            item.thickness === "1px" &&
+            item.offset === "4px" &&
+            item.borderBottomWidth === "0px",
+        ) && new Set(neutralLinks.map((item) => item.decorationColor)).size === 1,
+        JSON.stringify(neutralLinks),
+      );
+      ok(
+        "AI status underline keeps the semantic status color with the shared geometry",
+        underlineAudit.statusLink &&
+          underlineAudit.statusLink.line.includes("underline") &&
+          underlineAudit.statusLink.thickness === "1px" &&
+          underlineAudit.statusLink.offset === "4px" &&
+          underlineAudit.statusLink.borderBottomWidth === "0px" &&
+          underlineAudit.statusLink.decorationColor === underlineAudit.statusLink.color,
+        JSON.stringify(underlineAudit.statusLink),
+      );
+      ok(
+        "embedded signal counts no longer claim that visible evidence must be clicked",
+        !underlineAudit.hasRedundantPrompt &&
+          underlineAudit.signalLabels.length > 0 &&
+          underlineAudit.signalLabels.every((text) => /^\d+ 项信号$/.test(text)),
+        JSON.stringify(underlineAudit.signalLabels),
+      );
+
+      const mobileAudits = [];
+      for (const viewport of [
+        { width: 390, height: 664 },
+        { width: 300, height: 700 },
+      ]) {
+        await datedPage.setViewportSize(viewport);
+        mobileAudits.push(
+          await datedPage.evaluate((size) => {
+            const sections = document.querySelector(".analysis-workspace > #section-root").getBoundingClientRect();
+            return {
+              viewport: size,
+              sections: { left: sections.left, right: sections.right, width: sections.width },
+              overflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
+              inside: sections.left >= -1 && sections.right <= size.width + 1,
+            };
+          }, viewport),
+        );
+      }
+      ok(
+        "dated 390px and 300px layouts keep the wider diagnostic container inside the viewport",
+        mobileAudits.every((audit) => audit.overflow <= 1 && audit.inside),
+        JSON.stringify(mobileAudits),
+      );
+      await datedPage.close();
+
+      const rootPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+      await routeFixtures(rootPage, base.origin, { autoStart: false });
+      await rootPage.goto(base.href);
+      await rootPage.locator("#identity-generic").click();
+      await rootPage.waitForSelector("#section-root #sec-ip");
+      const rootLayout = await rootPage.evaluate(() => {
+        const result = document.querySelector("#identity-result-root").getBoundingClientRect();
+        const sections = document.querySelector(".analysis-workspace > #section-root").getBoundingClientRect();
+        return { resultWidth: result.width, sectionWidth: sections.width };
+      });
+      ok(
+        "the published root page keeps its existing 720px diagnostic layout",
+        rootLayout.resultWidth >= 959 && rootLayout.sectionWidth >= 719 && rootLayout.sectionWidth <= 721,
+        JSON.stringify(rootLayout),
+      );
+      await rootPage.close();
+    },
+  },
   {
     name: "Demo 首页隔离与交互：独立资源、统一图标、五项工具和可暂停倒计时",
     async run({ browser, base, ok }) {
@@ -1969,10 +2130,12 @@ const scenarios = [
         signalLayout.cardCount > 0 && signalLayout.allEmbedded && signalLayout.sectionCount >= 4,
         JSON.stringify(signalLayout),
       );
+      const pendingSignalCount = await page.locator('.identity-signal-card[data-status="unknown"]').count();
+      const pendingPanelCount = await page.locator(".identity-reasons-panel.is-pending").count();
       ok(
-        "empty pending evidence panel is not rendered",
-        (await page.locator(".identity-reasons-panel.is-pending").count()) === 0,
-        "pending panel should only exist when pending evidence exists",
+        "pending evidence panel is rendered only when the selected profile has unresolved service evidence",
+        (pendingSignalCount > 0 && pendingPanelCount === 1) || (pendingSignalCount === 0 && pendingPanelCount === 0),
+        `pendingSignals=${pendingSignalCount}; pendingPanels=${pendingPanelCount}`,
       );
       await page.close();
     },
@@ -2014,7 +2177,7 @@ const scenarios = [
       );
       ok(
         "supplemental AI tools remain visible in connectivity diagnostics",
-        ["Cursor", "GitHub", "npm Registry", "PyPI"].every((label) => connectivityText.includes(label)),
+        ["Cursor.com", "GitHub.com", "registry.npmjs.org", "PyPI.org"].every((label) => connectivityText.includes(label)),
         connectivityText.slice(0, 400),
       );
       await page.close();
@@ -2059,7 +2222,7 @@ const scenarios = [
       const connectivityText = await page.locator("#sec-conn").innerText();
       ok(
         "successful status and supplemental tool probes cannot replace failed core AI products",
-        ["Cursor", "GitHub", "npm Registry", "PyPI"].every((label) => connectivityText.includes(label)) &&
+        ["Cursor.com", "GitHub.com", "registry.npmjs.org", "PyPI.org"].every((label) => connectivityText.includes(label)) &&
           (await page.locator("#identity-match-score, .identity-match-score").count()) === 0 &&
           resultText.includes("尚未确认") &&
           !resultText.includes("证据收集中"),
@@ -3839,6 +4002,216 @@ const scenarios = [
     },
   },
   {
+    name: "网络连通服务矩阵：画像服务、规范域名与浏览器请求耗时",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage();
+      const requests = [];
+      page.on("request", (request) => requests.push(request.url()));
+      await routeFixtures(page, base.origin);
+      await page.goto(base.href);
+      await waitForScore(page);
+      await page.waitForFunction(
+        () =>
+          Array.from(document.querySelectorAll("#sec-conn .conn-card-status")).length > 0 &&
+          Array.from(document.querySelectorAll("#sec-conn .conn-card-status")).every(
+            (node) => node.textContent.trim() !== "检测中" && node.textContent.trim() !== "等待检测",
+          ),
+        null,
+        { timeout: 30000 },
+      );
+
+      const audit = await page.locator("#sec-conn").evaluate((section) => {
+        const groups = Object.fromEntries(
+          Array.from(section.querySelectorAll(".conn-group")).map((group) => [
+            group.querySelector(".conn-group-title")?.textContent.trim() || "",
+            Array.from(group.querySelectorAll(".conn-card")).map((card) => ({
+              label: card.querySelector(".conn-card-host")?.textContent.trim() || "",
+              status: card.querySelector(".conn-card-status")?.textContent.trim() || "",
+              probeUrl: card.dataset.probeUrl || "",
+            })),
+          ]),
+        );
+        return {
+          groups,
+          note: section.querySelector(".conn-note")?.textContent.trim() || "",
+        };
+      });
+      const labels = (title) => (audit.groups[title] || []).map((item) => item.label);
+      const terminalStatuses = Object.values(audit.groups)
+        .flat()
+        .every((item) =>
+          /^可达 · \d+ms$|^已连接 · 状态受限 · \d+ms$|^官方备用资源(?:可达|已连接 · 状态受限) · \d+ms$|^(?:已连接 · |官方备用资源 · )HTTP \d+ · 服务响应异常 · \d+ms$|^浏览器受限 \/ 未确认$|^未确认$/.test(item.status),
+        );
+
+      ok(
+        "generic connectivity group keeps Google and YouTube, adds WhatsApp and Reddit, and removes ChatGPT",
+        labels("🌐 通用数字身份分析 · 目标服务").join(",") ===
+          "Google.com,YouTube.com,WhatsApp.com,Reddit.com",
+        JSON.stringify(audit.groups["🌐 通用数字身份分析 · 目标服务"] || []),
+      );
+      ok(
+        "creator connectivity group includes TikTok, YouTube, Instagram and X",
+        ["TikTok.com", "YouTube.com", "Instagram.com", "X.com"].every((label) =>
+          labels("🎬 自媒体创作者 · 目标服务").includes(label),
+        ),
+        labels("🎬 自媒体创作者 · 目标服务").join(","),
+      );
+      ok(
+        "merchant connectivity group includes the four requested commerce services",
+        labels("🛒 跨境商家 · 目标服务").join(",") ===
+          "Shopify.com,Amazon.com,PayPal.com,Stripe.com",
+        labels("🛒 跨境商家 · 目标服务").join(","),
+      );
+      ok(
+        "public network groups use conventional domain capitalization",
+        labels("全球站点 · 常被墙").join(",") === "Google.com,YouTube.com,X.com,Wikipedia.org" &&
+          labels("中国站点").join(",") === "Baidu.com,QQ.com,TaoBao.com,BiliBili.com",
+        JSON.stringify({ global: labels("全球站点 · 常被墙"), china: labels("中国站点") }),
+      );
+      ok("all connectivity cards reach a terminal latency or restricted state", terminalStatuses, JSON.stringify(audit.groups));
+      ok(
+        "connectivity note defines browser request timing and its limits",
+        /连接到响应头耗时/.test(audit.note) && /不代表区域解锁、账号或支付功能/.test(audit.note),
+        audit.note,
+      );
+
+      const configuredProbeEndpoints = new Set(
+        Object.values(audit.groups)
+          .flat()
+          .map((item) => item.probeUrl)
+          .filter(Boolean)
+          .map((probeUrl) => {
+            const url = new URL(probeUrl);
+            return `${url.hostname}${url.pathname}`;
+          }),
+      );
+      const uncachedServiceRequests = requests
+        .map((requestUrl) => {
+          const url = new URL(requestUrl);
+          return { endpoint: `${url.hostname}${url.pathname}`, cacheBust: url.searchParams.has("_") };
+        })
+        .filter((item) => configuredProbeEndpoints.has(item.endpoint));
+      const expectedProbeEndpoints = [
+        "www.google.com/generate_204",
+        "www.youtube.com/generate_204",
+        "web.whatsapp.com/favicon.ico",
+        "www.reddit.com/favicon.ico",
+        "www.tiktok.com/favicon.ico",
+        "www.instagram.com/favicon.ico",
+        "x.com/favicon.ico",
+        "www.shopify.com/favicon.ico",
+        "www.amazon.com/favicon.ico",
+        "www.paypal.com/favicon.ico",
+        "dashboard.stripe.com/healthcheck",
+      ];
+      const missingProbeEndpoints = expectedProbeEndpoints.filter((endpoint) => !configuredProbeEndpoints.has(endpoint));
+      ok(
+        "all requested services are configured with the audited official public probe endpoints",
+        missingProbeEndpoints.length === 0,
+        `missing=${missingProbeEndpoints.join(",")}; configured=${Array.from(configuredProbeEndpoints).join(",")}`,
+      );
+      ok(
+        "service probes rely on no-store instead of random cache-busting query parameters",
+        uncachedServiceRequests.length > 0 && uncachedServiceRequests.every((item) => !item.cacheBust),
+        JSON.stringify(uncachedServiceRequests),
+      );
+      await page.setViewportSize({ width: 300, height: 700 });
+      const mobileAudit = await page.locator("#sec-conn").evaluate((section) => ({
+        overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,
+        clippedCards: Array.from(section.querySelectorAll(".conn-card")).filter(
+          (card) => card.scrollWidth > card.clientWidth + 1,
+        ).length,
+      }));
+      ok(
+        "300px connectivity cards keep full latency states inside the viewport",
+        mobileAudit.overflow === 0 && mobileAudit.clippedCards === 0,
+        JSON.stringify(mobileAudit),
+      );
+      await page.close();
+    },
+  },
+  {
+    name: "服务探针语义：延迟成功与浏览器受限保持可区分",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage();
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        serviceDelays: { "dashboard.stripe.com": 180 },
+        blockedServiceHosts: ["www.paypalobjects.com", "www.paypal.com"],
+      });
+      await page.goto(base.href);
+      await page.locator('input[value="cross_border_seller"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page);
+
+      const merchant = await page.locator("#sec-conn .conn-group").filter({
+        has: page.locator(".conn-group-title", { hasText: "跨境商家" }),
+      });
+      const statuses = Object.fromEntries(
+        await merchant.locator(".conn-card").evaluateAll((cards) =>
+          cards.map((card) => [
+            card.querySelector(".conn-card-host")?.textContent.trim() || "",
+            card.querySelector(".conn-card-status")?.textContent.trim() || "",
+          ]),
+        ),
+      );
+      const stripeMs = Number((statuses["Stripe.com"] || "").match(/(\d+)ms$/)?.[1] || 0);
+      const commerceSignal = await page.locator('.identity-signal-card[data-signal-id="commerce_services"]').evaluate((card) => ({
+        status: card.dataset.status,
+        evidence: card.textContent.trim(),
+      }));
+      ok(
+        "successful service probe exposes measured browser request time",
+        /^可达 · \d+ms$/.test(statuses["Stripe.com"] || "") && stripeMs >= 150,
+        JSON.stringify(statuses),
+      );
+      ok(
+        "blocked no-cors service remains restricted rather than being called unreachable",
+        statuses["PayPal.com"] === "浏览器受限 / 未确认",
+        JSON.stringify(statuses),
+      );
+      ok(
+        "mixed commerce reachability becomes a partial identity signal with explicit evidence",
+        commerceSignal.status === "partial" && /Stripe\.com：浏览器可达/.test(commerceSignal.evidence) &&
+          /PayPal\.com：浏览器受限 \/ 未确认/.test(commerceSignal.evidence),
+        JSON.stringify(commerceSignal),
+      );
+      await page.close();
+    },
+  },
+  {
+    name: "AI 补充服务：慢速开发工具不阻塞核心身份结论",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        serviceDelays: {
+          "www.cursor.com": 10000,
+          "github.com": 10000,
+          "registry.npmjs.org": 10000,
+          "pypi.org": 10000,
+        },
+      });
+      await page.goto(base.href);
+      await page.locator('input[value="ai_worker"]').check();
+      const startedAt = Date.now();
+      await page.locator("#identity-start").click();
+      await waitForScore(page, 8000, { openDiagnostics: false });
+      const elapsed = Date.now() - startedAt;
+      const supplementalStates = await page.locator("#sec-conn .conn-card").evaluateAll((cards) =>
+        cards
+          .filter((card) => ["cursor", "github", "npm", "pypi"].includes(card.dataset.serviceId || ""))
+          .map((card) => card.querySelector(".conn-card-status")?.textContent.trim() || ""),
+      );
+      ok(
+        "AI core services can complete the result while supplemental developer tools remain in flight",
+        elapsed < 8000 && supplementalStates.length === 4 && supplementalStates.some((status) => status === "检测中"),
+        `elapsed=${elapsed}ms; supplemental=${supplementalStates.join(",")}`,
+      );
+      await page.close();
+    },
+  },
+  {
     name: "全部重测事务：自定义查询复位且延迟任务不覆盖手动重测",
     async run({ browser, base, ok }) {
       const page = await browser.newPage();
@@ -3878,9 +4251,40 @@ const scenarios = [
       });
       await page.waitForTimeout(2300);
       const rtcAfter = await page.evaluate(() => window.__rtcCreated);
-      const connProbeCount = requests
+      await page.waitForFunction(
+        () =>
+          Array.from(document.querySelectorAll("#sec-conn .conn-card-status")).length > 0 &&
+          Array.from(document.querySelectorAll("#sec-conn .conn-card-status")).every(
+            (node) => node.textContent.trim() !== "检测中" && node.textContent.trim() !== "等待检测",
+          ),
+        null,
+        { timeout: 30000 },
+      );
+      const connProbeRequests = requests
         .slice(requestStart)
-        .filter((url) => /favicon\.ico|generate_204/.test(url) && !url.includes("github.com")).length;
+        .filter((url) => /favicon|generate_204|healthcheck|logo-small|\/-\/ping|shopify-favicon/.test(url));
+      const uniqueConnProbeRequests = new Set(
+        connProbeRequests.map((requestUrl) => {
+          const url = new URL(requestUrl);
+          return `${url.hostname}${url.pathname}`;
+        }),
+      );
+      const expectedConnHostCount = await page.locator("#sec-conn .conn-card").evaluateAll(
+        (cards) => new Set(cards.map((card) => card.dataset.connHost).filter(Boolean)).size,
+      );
+      const completedConnHostCount = await page.locator("#sec-conn .conn-card").evaluateAll(
+        (cards) =>
+          new Set(
+            cards
+              .filter((card) => {
+                const status = card.querySelector(".conn-card-status")?.textContent.trim();
+                return status && status !== "检测中" && status !== "等待检测";
+              })
+              .map((card) => card.dataset.connHost)
+              .filter(Boolean),
+          ).size,
+      );
+      const duplicateProbeCount = connProbeRequests.length - uniqueConnProbeRequests.size;
       ok(
         "scheduled WebRTC does not restart a manual run from the same round",
         rtcAfter - rtcBefore === 1,
@@ -3888,8 +4292,99 @@ const scenarios = [
       );
       ok(
         "scheduled connectivity does not duplicate a manual run from the same round",
-        connProbeCount >= 9 && connProbeCount <= 12,
-        `requests=${connProbeCount}`,
+        completedConnHostCount === expectedConnHostCount &&
+          uniqueConnProbeRequests.size >= 4 &&
+          uniqueConnProbeRequests.size <= expectedConnHostCount &&
+          duplicateProbeCount <= 4,
+        `requests=${connProbeRequests.length}; unique=${uniqueConnProbeRequests.size}; completed=${completedConnHostCount}; expected=${expectedConnHostCount}; duplicates=${duplicateProbeCount}`,
+      );
+      await page.close();
+    },
+  },
+  {
+    name: "网络连通连续重测：运行中禁用且全局并发不超过四路",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage();
+      const serviceDelays = {};
+      const activeRequests = new Set();
+      const requestCounts = new Map();
+      let tracking = false;
+      let maxActive = 0;
+      const endpointKey = (requestUrl) => {
+        const url = new URL(requestUrl);
+        return `${url.hostname}${url.pathname}`;
+      };
+      page.on("request", (request) => {
+        const key = endpointKey(request.url());
+        if (!tracking || !/favicon|generate_204|healthcheck|logo-small|\/-\/ping|shopify-favicon/.test(request.url())) return;
+        activeRequests.add(request);
+        requestCounts.set(key, (requestCounts.get(key) || 0) + 1);
+        maxActive = Math.max(maxActive, activeRequests.size);
+      });
+      const release = (request) => activeRequests.delete(request);
+      page.on("requestfinished", release);
+      page.on("requestfailed", release);
+      await routeFixtures(page, base.origin, { serviceDelays });
+      await page.goto(base.href);
+      await waitForScore(page);
+      await page.waitForFunction(
+        () => {
+          const statuses = Array.from(document.querySelectorAll("#sec-conn .conn-card-status"));
+          return statuses.length > 0 && statuses.every((node) => !/检测中|等待检测/.test(node.textContent || ""));
+        },
+        null,
+        { timeout: 30000 },
+      );
+      const initiallyEnabled = await page.locator('[data-action="run-conn"]').isEnabled();
+      const primaryProbeUrls = await page.locator("#sec-conn .conn-card").evaluateAll((cards) =>
+        Array.from(new Set(cards.map((card) => card.dataset.probeUrl).filter(Boolean))),
+      );
+      primaryProbeUrls.forEach((requestUrl) => {
+        const url = new URL(requestUrl);
+        serviceDelays[url.hostname] = 240;
+      });
+      tracking = true;
+      await page.evaluate(() => {
+        const button = document.querySelector('[data-action="run-conn"]');
+        button?.click();
+        button?.click();
+        button?.click();
+      });
+      await page.waitForFunction(() => document.querySelector('[data-action="run-conn"]')?.disabled === true);
+      const runningState = await page.locator("#sec-conn").evaluate((section) => ({
+        disabled: section.querySelector('[data-action="run-conn"]')?.disabled === true,
+        pendingCount: Array.from(section.querySelectorAll(".conn-card-status")).filter((node) =>
+          /检测中|等待检测/.test(node.textContent || ""),
+        ).length,
+      }));
+      await page.waitForFunction(
+        () => {
+          const statuses = Array.from(document.querySelectorAll("#sec-conn .conn-card-status"));
+          return statuses.length > 0 && statuses.every((node) => !/检测中|等待检测/.test(node.textContent || ""));
+        },
+        null,
+        { timeout: 30000 },
+      );
+      await page.waitForFunction(() => document.querySelector('[data-action="run-conn"]')?.disabled === false);
+      const duplicatePrimaryEndpoints = Array.from(requestCounts.entries()).filter(([, count]) => count > 1);
+      const buttonState = await page.locator('[data-action="run-conn"]').evaluate((button) => ({
+        disabled: button.disabled,
+        text: button.textContent.trim(),
+      }));
+      ok(
+        "rapid repeated activation starts one probe batch and never exceeds four active connectivity requests",
+        initiallyEnabled &&
+          runningState.disabled &&
+          runningState.pendingCount > 0 &&
+          requestCounts.size >= 4 &&
+          maxActive <= 4 &&
+          duplicatePrimaryEndpoints.length === 0,
+        `initiallyEnabled=${initiallyEnabled}; running=${JSON.stringify(runningState)}; requests=${requestCounts.size}; maxActive=${maxActive}; duplicates=${JSON.stringify(duplicatePrimaryEndpoints)}`,
+      );
+      ok(
+        "connectivity retest is enabled again after the single batch reaches a terminal state",
+        buttonState.disabled === false && buttonState.text.includes("重测"),
+        JSON.stringify(buttonState),
       );
       await page.close();
     },
@@ -4560,30 +5055,40 @@ const scenarios = [
     },
   },
   {
-    name: "服务探针：CORS HTTP 503 不得标记为可达",
+    name: "服务探针：CORS HTTP 503 必须保留明确故障且不得被备用端点掩盖",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      const serviceRequests = [];
+      page.on("request", (request) => {
+        if (/stripe/i.test(request.url())) serviceRequests.push(request.url());
+      });
       await routeFixtures(page, base.origin, {
         autoStart: false,
-        errorServiceHosts: ["registry.npmjs.org"],
+        errorServiceHosts: ["dashboard.stripe.com"],
       });
       await page.goto(base.href);
-      await page.locator('input[value="ai_worker"]').check();
+      await page.locator('input[value="cross_border_seller"]').check();
       await page.locator("#identity-start").click();
       await waitForScore(page);
-      const npmCard = page.locator(".conn-card").filter({ hasText: "npm Registry" });
-      await npmCard.waitFor();
+      const stripeCard = page.locator(".conn-card").filter({ hasText: "Stripe.com" }).first();
+      await stripeCard.waitFor();
       await page.waitForFunction(() => {
         const card = Array.from(document.querySelectorAll(".conn-card")).find((node) =>
-          node.textContent.includes("npm Registry"),
+          node.textContent.includes("Stripe.com"),
         );
         return card && !card.textContent.includes("检测中");
       });
-      const cardText = await npmCard.innerText();
+      const cardText = await stripeCard.innerText();
       ok(
-        "a failed CORS response stays unconfirmed instead of becoming reachable",
-        !cardText.includes("可达") && /浏览器受限|未确认/.test(cardText),
+        "a readable HTTP failure remains an explicit service response error",
+        /已连接 · HTTP 503 · 服务响应异常 · \d+ms/.test(cardText) &&
+          !/浏览器受限|状态受限|可达/.test(cardText),
         cardText,
+      );
+      ok(
+        "a readable primary HTTP failure does not fall back to a static resource",
+        !serviceRequests.some((requestUrl) => new URL(requestUrl).hostname === "stripe.com"),
+        serviceRequests.join(","),
       );
       await page.close();
     },
