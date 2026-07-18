@@ -23,14 +23,14 @@
     <meta name="twitter:image" content="https://betaer.github.io/AiSignalGuard/assets/og.png">
     <meta name="twitter:image:alt" content="AI Signal Guard 数字身份匹配分析">
     <link rel="icon" href="../favicon.svg?v=20260708-3" type="image/svg+xml">
-    <link rel="stylesheet" href="styles-new.min.css?v=20260718-4">
+    <link rel="stylesheet" href="styles-new.min.css?v=20260718-7">
     <script>
       window.dataLayer = window.dataLayer || [];
       window.gtag = window.gtag || function () {
         window.dataLayer.push(arguments);
       };
     </script>
-    <script vite-ignore src="app-new.min.js?v=20260718-4" defer></script>
+    <script vite-ignore src="app-new.min.js?v=20260718-7" defer></script>
   </head>
   <body data-app-stage="select" data-demo-version="identity-v2" data-layout="identity-demo-v2">
     <a class="skip-link" href="#main">跳到主要内容</a>
@@ -316,23 +316,34 @@
         <p class="visually-hidden" id="identity-result-status" role="status" aria-live="polite" aria-atomic="true"></p>
         <div id="identity-result-root"></div>
 
-        <details class="advanced-diagnostics result-disclosure" id="advanced-diagnostics">
-          <summary>
-            <span class="result-disclosure-heading">高级网络诊断</span>
-            <span class="result-disclosure-copy">独立参考，不计入身份匹配分</span>
+        <details class="advanced-diagnostics result-disclosure network-risk-diagnostics" id="advanced-diagnostics">
+          <summary class="network-risk-summary" id="score-title">
+            <span class="network-risk-summary-copy">
+              <span class="network-risk-kicker">补充诊断 · 独立参考</span>
+              <strong>高级网络风险诊断</strong>
+            </span>
+            <span class="network-risk-summary-result">
+              <strong id="network-risk-label">检测中</strong>
+              <span id="network-risk-counts">正在收集风险证据</span>
+              <span class="network-risk-chevron" aria-hidden="true">›</span>
+            </span>
           </summary>
-          <div class="advanced-diagnostics-body">
-        <section class="score-stage" id="sec-score" aria-labelledby="score-title">
-        <p class="eyebrow" id="score-title">网络信号参考分</p>
+          <div class="advanced-diagnostics-body network-risk-body">
+        <section class="score-stage" id="sec-score" aria-label="逐项网络风险信号">
+        <p class="eyebrow">逐项风险信号</p>
         <div class="score-orbit">
-          <div class="score-core">
+          <div class="score-core score-compatibility-score" aria-hidden="true">
             <svg id="score-ring" class="score-gauge" viewBox="0 0 120 120" role="img" aria-label="网络信号参考分进度"></svg>
             <div class="score-copy" role="status" aria-live="polite" aria-atomic="true">
               <span class="score-number" id="score-number">··</span>
               <span class="score-status" id="score-status">检测中</span>
             </div>
           </div>
-          <div class="score-nodes" id="score-nodes" role="group" aria-label="评分分项详情"></div>
+          <div class="score-context-core" aria-hidden="true">
+            <strong>风险信号</strong>
+            <span>点击节点查看</span>
+          </div>
+          <div class="score-nodes" id="score-nodes" role="group" aria-label="网络风险分项详情"></div>
         </div>
         <p class="score-summary" id="score-summary">正在运行本地与联网检测…</p>
         <div class="score-insights" id="score-insights" aria-live="polite"></div>
@@ -350,30 +361,21 @@
         </div>
 
         <div class="score-links">
-          <button class="underlink" type="button" data-panel="rules">评分规则</button>
+          <button class="underlink" type="button" data-panel="rules">风险判定规则</button>
           <button class="underlink" type="button" data-panel="privacy">隐私说明</button>
         </div>
 
         <div class="info-panel" id="rules-panel" hidden>
-          <strong>评分口径：满分 100，命中即扣；所有已观察到的 IPv4 / IPv6 出口共同判定，出口 IP 取最重一项。</strong>
+          <strong>风险判定口径：按高风险、需留意和未确认分类；所有已观察到的 IPv4 / IPv6 出口共同判定，同类信号取最重证据。</strong>
           <p>
-            重扣：出口 IP 在<span class="china-emphasis">中国</span> -35 · 机房 / VPN 出口 -22 ·
-            <span class="china-emphasis">大陆直连</span> -20 · DNS
-            泄漏<span class="china-emphasis">中国解析器</span> -15 · WebRTC 出口外公网候选 -12 · 至少 2 个实际 AI
-            目标的服务侧国家标签一致命中当前<span class="china-emphasis">中国</span>口径 -15。
+            高风险：出口 IP 位于当前<span class="china-emphasis">中国</span>口径、检测到<span class="china-emphasis">大陆直连</span>、
+            DNS 解析器地区与出口明显不同、WebRTC 出现出口外公网候选，或多个 AI 目标稳定命中当前地区口径。
           </p>
           <p>
-            轻扣：信号前后<span class="risk-emphasis">矛盾</span> -8 · 出口 IP 情报不完整（仅测出地址或完全无法读取）-8 · 语言含中文 -4 ·
-            时区在<span class="china-emphasis">中国</span> -4 · Emoji / 字体弱信号各 -1。
-            多源 IP 情报冲突（至少 3 个地理来源、2 个及以上分歧时）-4。
+            需留意：机房、VPN 或代理类网络标签，出口情报不完整，多源地理证据分歧，浏览器语言或时区与出口环境不一致。
           </p>
           <p>
-            不适用或证据不足的检测项（如 Windows 上的 Emoji 项、地理来源不足的多源交叉）按中性处理，不扣分也不标绿；
-            出口 IP 只读到地址但缺少可核对的地区，或完全无法读取，是例外，按上面“情报不完整 -8”计。
-          </p>
-          <p>
-            Cloudflare 基准只用于观察路径，不参与网络信号参考分；单个 AI 目标命中或同一目标前后标签不一致时按未确认处理，不扣分。
-            AI 官方服务状态也只用于排查平台故障，不参与网络信号参考分。
+            不适用或证据不足的项目保持未确认。Cloudflare 基准、单个不稳定的 AI 目标和 AI 官方服务状态只用于排障，不提升风险等级。
           </p>
         </div>
 
@@ -384,7 +386,7 @@
             STUN、连通性探测、DNS 泄漏检测、AI 路径和 AI 服务状态。
           </p>
           <p>
-            “分享给 AI”会按当前隐藏状态生成结构化报告：默认保留完整 IP；开启“隐藏”后，IPv4
+            “复制给AI诊断”会按当前隐藏状态生成结构化报告：默认保留完整 IP；开启“隐藏”后，IPv4
             仅隐藏最后一段，IPv6 仅保留前三组。mDNS、Canvas 与声纹标识始终不写入原值。
             右下角“隐藏 / 取消隐藏”同时控制页面与复制报告中的 IP 显示。
           </p>

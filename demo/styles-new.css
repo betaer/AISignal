@@ -1919,6 +1919,7 @@ body[data-app-stage="result"] .analysis-progress {
 }
 
 .section-title {
+  margin: 0;
   color: var(--ink);
   font-size: 16px;
   font-weight: 650;
@@ -2600,7 +2601,478 @@ body[data-app-stage="result"] .analysis-progress {
   }
 }
 
+/* 2026-07-18 · 单一身份结论、证据归位与非数字风险摘要 */
+.identity-summary-card {
+  scroll-margin-top: 96px;
+}
+
+.identity-summary-card.identity-summary-generic {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(122, 169, 129, 0.12), transparent 240px),
+    var(--surface);
+}
+
+.identity-match-score[data-score-state="unavailable"] .identity-match-score-value {
+  margin-top: 10px;
+  font: 680 20px/1.2 var(--sans);
+  letter-spacing: -0.015em;
+}
+
+.identity-match-score[data-score-state="unavailable"] .identity-score-total {
+  display: block;
+  margin-top: 5px;
+}
+
+.identity-summary-profile-generic {
+  gap: 0;
+}
+
+.identity-summary-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.identity-summary-footer .identity-coverage {
+  display: grid;
+  min-width: min(100%, 300px);
+  grid-template-columns: 1fr auto;
+  gap: 0 12px;
+  margin: 0;
+}
+
+.identity-summary-footer .identity-coverage-meter {
+  grid-column: 1 / -1;
+}
+
+.identity-summary-footer .identity-reselect {
+  flex: none;
+  margin-top: 0;
+}
+
+.identity-result-section,
+.identity-advice {
+  margin-top: 22px;
+}
+
+.identity-result-heading {
+  margin-bottom: 11px;
+  padding: 0 3px;
+}
+
+.identity-result-heading h2 {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+
+.identity-advice {
+  padding: 21px 22px;
+}
+
+.identity-advice .identity-result-heading {
+  padding: 0;
+}
+
+.identity-advice-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 22px;
+  margin-top: 14px;
+}
+
+.network-risk-summary,
+.identity-signal-card > summary {
+  list-style: none;
+}
+
+.network-risk-summary::-webkit-details-marker,
+.identity-signal-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.network-risk-summary:focus-visible,
+.identity-signal-card > summary:focus-visible {
+  outline: 3px solid rgba(34, 143, 70, 0.3);
+  outline-offset: -3px;
+}
+
+.identity-section-match {
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(245, 248, 239, 0.82), rgba(255, 255, 255, 0.52));
+  padding: 15px 18px 17px;
+}
+
+.identity-section-match-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.identity-section-match-head h3 {
+  margin: 0;
+  color: #405535;
+  font: 680 11.5px/1.4 var(--mono);
+}
+
+.identity-section-match-head span {
+  color: var(--muted-2);
+  font-size: 10.5px;
+}
+
+.identity-section-match-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.identity-section-match .identity-signal-card,
+.identity-section-match .identity-signal-card:nth-child(2n),
+.identity-section-match .identity-signal-card:nth-child(4n),
+.identity-section-match .identity-signal-card:last-child:nth-child(odd) {
+  min-height: 0;
+  grid-column: auto;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: none;
+  padding: 0;
+}
+
+.identity-signal-card > summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  padding: 9px 11px 9px 13px;
+  transition:
+    background 150ms ease,
+    transform 100ms ease;
+}
+
+.identity-signal-card > summary:hover {
+  background: #f7f9f3;
+}
+
+.identity-signal-card > summary:active {
+  transform: translateY(1px);
+}
+
+.identity-signal-card[open] > summary {
+  border-bottom: 1px solid var(--line);
+  background: #f5f8ef;
+}
+
+.identity-signal-card-header > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.identity-signal-card-header strong {
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+  font: 680 11.5px/1.4 var(--sans);
+}
+
+.identity-signal-prefix {
+  color: var(--muted-2);
+  font: 9.5px/1.2 var(--mono);
+}
+
+.identity-signal-card-meta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+}
+
+.identity-signal-chevron,
+.network-risk-chevron {
+  display: inline-grid;
+  color: var(--muted-2);
+  font: 700 18px/1 var(--sans);
+  place-items: center;
+  transform: rotate(0deg);
+  transform-origin: center;
+  transition: transform 160ms ease;
+}
+
+.identity-signal-card[open] .identity-signal-chevron {
+  transform: rotate(90deg);
+}
+
+.identity-signal-card-body {
+  padding: 12px 13px 14px;
+}
+
+.identity-signal-card-body dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+}
+
+.identity-signal-card-body dl > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.identity-signal-card-body dt {
+  color: var(--muted-2);
+  font: 9.5px/1.4 var(--mono);
+}
+
+.identity-signal-card-body dd {
+  margin: 0;
+  color: var(--ink-2);
+  font: 650 10.5px/1.4 var(--mono);
+}
+
+.identity-signal-card-body .identity-signal-evidence {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.network-risk-diagnostics {
+  overflow: hidden;
+  border-color: var(--demo-line);
+  box-shadow: 0 8px 28px rgba(31, 31, 25, 0.05);
+  padding: 0;
+  text-align: left;
+}
+
+.network-risk-summary,
+.result-disclosure > .network-risk-summary {
+  position: relative;
+  display: flex;
+  min-height: 84px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  cursor: pointer;
+  padding: 18px 21px;
+  transition:
+    background 170ms ease,
+    transform 100ms ease;
+}
+
+.result-disclosure > .network-risk-summary::after {
+  content: none;
+}
+
+.network-risk-summary:hover {
+  background: #f8f9f5;
+}
+
+.network-risk-summary:active {
+  transform: translateY(1px);
+}
+
+.network-risk-summary-copy,
+.network-risk-summary-result {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.network-risk-kicker {
+  color: var(--muted-2);
+  font: 9.5px/1.3 var(--mono);
+  letter-spacing: 0.06em;
+}
+
+.network-risk-summary-copy > strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.network-risk-summary-result {
+  padding-right: 24px;
+  justify-items: end;
+  text-align: right;
+}
+
+.network-risk-summary-result > strong {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.network-risk-summary-result > strong[data-risk-tone="red"] {
+  color: var(--status-red-ink);
+}
+
+.network-risk-summary-result > strong[data-risk-tone="amber"] {
+  color: var(--status-amber-ink);
+}
+
+.network-risk-summary-result > strong[data-risk-tone="green"] {
+  color: var(--status-green-ink);
+}
+
+.network-risk-summary-result > span {
+  color: var(--muted-2);
+  font: 10px/1.45 var(--mono);
+}
+
+.network-risk-summary-result > .network-risk-chevron {
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  font-size: 20px;
+  transform: translateY(-50%) rotate(0deg);
+}
+
+.score-risk-chip-unconfirmed {
+  border-color: var(--line-2);
+  color: var(--muted);
+}
+
+.score-risk-chip-unconfirmed .score-risk-mark {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.network-risk-diagnostics[open] .network-risk-summary-result > .network-risk-chevron {
+  transform: translateY(-50%) rotate(90deg);
+}
+
+.network-risk-diagnostics[open] > .network-risk-summary {
+  border-bottom: 1px solid var(--line);
+  background: #fafbf7;
+}
+
+.advanced-diagnostics-body.network-risk-body {
+  border-top: 0;
+  padding: 28px 22px 24px;
+  text-align: center;
+}
+
+.network-risk-body > .score-stage > .eyebrow {
+  margin-bottom: 17px;
+  letter-spacing: 0.1em;
+}
+
+.score-compatibility-score {
+  display: none !important;
+}
+
+.score-context-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  width: 126px;
+  aspect-ratio: 1;
+  place-content: center;
+  gap: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  background: var(--surface-soft);
+  color: var(--ink-2);
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.score-context-core strong {
+  font-size: 13px;
+}
+
+.score-context-core span {
+  color: var(--muted-2);
+  font: 9.5px/1.4 var(--mono);
+}
+
+.advanced-diagnostics-body > #section-root {
+  text-align: left;
+}
+
+@media (max-width: 720px) {
+  .identity-summary-card {
+    scroll-margin-top: 78px;
+  }
+
+  .identity-summary-header,
+  .identity-summary-footer,
+  .network-risk-summary {
+    display: flex;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .identity-summary-header {
+    gap: 16px;
+  }
+
+  .identity-match-score {
+    width: 100%;
+    min-width: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    padding-top: 14px;
+    padding-left: 0;
+    text-align: left;
+  }
+
+  .identity-summary-footer {
+    gap: 12px;
+  }
+
+  .identity-summary-footer .identity-reselect {
+    align-self: flex-start;
+  }
+
+  .identity-reasons-grid,
+  .identity-advice-list,
+  .identity-section-match-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .network-risk-summary {
+    gap: 12px;
+  }
+
+  .network-risk-summary-result {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .advanced-diagnostics-body.network-risk-body {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+}
+
+@media (max-width: 340px) {
+  .advanced-diagnostics .score-context-core {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 128px;
+    flex: 0 0 128px;
+    transform: none;
+  }
+}
+
 .conn-panel {
+  padding: 0;
+}
+
+.conn-panel-body {
   padding: 4px 20px 18px;
 }
 
@@ -3598,7 +4070,7 @@ body[data-app-stage="result"] .analysis-progress {
     grid-template-columns: 1fr;
   }
 
-  .conn-panel {
+  .conn-panel-body {
     padding: 4px 14px 15px;
   }
 

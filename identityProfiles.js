@@ -67,6 +67,17 @@ const NETWORK = check(
   "核对当前 ISP、网络类型与目标环境的使用场景。",
 );
 
+const GENERIC_NETWORK = check(
+  "network",
+  "网络类型",
+  "分析 ISP、ASN 与住宅或数据中心等网络特征。",
+  "网络类型证据与当前环境保持一致",
+  "网络类型仍有部分特征需要核对",
+  "网络类型与其他环境信号存在明显差异",
+  "尚未确认网络类型",
+  "核对当前 ISP、网络类型是否符合实际使用场景。",
+);
+
 const REPUTATION = check(
   "reputation",
   "IP 信誉",
@@ -89,6 +100,17 @@ const TIMEZONE = check(
   "将设备时区设置为实际使用地区，并核对系统与浏览器设置。",
 );
 
+const GENERIC_TIMEZONE = check(
+  "timezone",
+  "时区",
+  "比较浏览器时区与出口位置是否一致。",
+  "设备时区与出口地区一致",
+  "设备时区与出口地区仍有待核对差异",
+  "设备时区与出口地区不一致",
+  "尚未确认时区一致性",
+  "按实际使用地区核对系统时区、浏览器时区与网络出口。",
+);
+
 const LANGUAGE = check(
   "language",
   "语言",
@@ -98,6 +120,17 @@ const LANGUAGE = check(
   "浏览器语言与目标环境存在差异",
   "尚未确认浏览器语言",
   "核对操作系统和浏览器的首选语言是否与日常使用环境一致。",
+);
+
+const GENERIC_LANGUAGE = check(
+  "language",
+  "语言",
+  "比较浏览器语言与出口地区及日常使用环境是否一致。",
+  "浏览器语言与当前环境一致",
+  "浏览器语言仍有部分地区信息需要核对",
+  "浏览器语言与其他环境信号存在差异",
+  "尚未确认浏览器语言地区",
+  "核对操作系统和浏览器的首选语言是否与实际使用环境一致。",
 );
 
 const BROWSER = check(
@@ -146,6 +179,19 @@ function serviceCheck(id, label, targetLabel) {
   );
 }
 
+function genericServiceCheck() {
+  return check(
+    "services",
+    "常用服务",
+    "分析常用服务的浏览器侧可达性与访问路径信号。",
+    "常用服务的访问路径信号稳定",
+    "部分常用服务仍受浏览器或网络策略限制",
+    "常用服务出现明确的访问差异",
+    "尚未完成常用服务检测",
+    "查看常用服务的逐项结果，并区分浏览器限制、服务状态与网络路径问题。",
+  );
+}
+
 function strictUsLocationRule() {
   return {
     id: "target_region_conflict",
@@ -184,14 +230,14 @@ const profiles = [
     },
     checks: [
       LOCATION_CONSISTENCY,
-      NETWORK,
+      GENERIC_NETWORK,
       REPUTATION,
-      TIMEZONE,
-      LANGUAGE,
+      GENERIC_TIMEZONE,
+      GENERIC_LANGUAGE,
       BROWSER,
       DNS,
       WEBRTC,
-      serviceCheck("services", "常用服务", "常用"),
+      genericServiceCheck(),
     ],
     serviceIds: ["google", "youtube", "chatgpt"],
     serviceGroups: [

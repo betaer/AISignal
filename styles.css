@@ -836,6 +836,17 @@ body[data-app-stage="result"] .analysis-progress {
   font: 12px/1 var(--mono);
 }
 
+.identity-match-score[data-score-state="unavailable"] .identity-match-score-value {
+  margin-top: 10px;
+  font: 680 20px/1.2 var(--sans);
+  letter-spacing: -0.015em;
+}
+
+.identity-match-score[data-score-state="unavailable"] .identity-score-total {
+  display: block;
+  margin-top: 5px;
+}
+
 .identity-result,
 .identity-result-section,
 .identity-analysis-section,
@@ -2525,6 +2536,10 @@ body[data-app-stage="result"] .analysis-progress {
 }
 
 .conn-panel {
+  padding: 0;
+}
+
+.conn-panel-body {
   padding: 4px 20px 18px;
 }
 
@@ -3522,7 +3537,7 @@ body[data-app-stage="result"] .analysis-progress {
     grid-template-columns: 1fr;
   }
 
-  .conn-panel {
+  .conn-panel-body {
     padding: 4px 14px 15px;
   }
 

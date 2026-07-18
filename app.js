@@ -1206,20 +1206,22 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       return identitySignal("partial", 0.45, evidence, "DNS 泄漏检测");
     }
     var geography = (profile.target && profile.target.geography) || {};
-    var targetCountries = geography.mode === "country" ? geography.countryCodes || [] : observedExitCountries();
+    var usesTargetRegion = geography.mode === "country";
+    var targetCountries = usesTargetRegion ? geography.countryCodes || [] : observedExitCountries();
+    var comparisonRegion = usesTargetRegion ? "目标地区" : "出口地区";
     if (!targetCountries.length) {
-      return identitySignal("partial", 0.55, evidence + "；出口目标地区不足，暂不能完整核对", "DNS 泄漏检测");
+      return identitySignal("partial", 0.55, evidence + "；" + comparisonRegion + "证据不足，暂不能完整核对", "DNS 泄漏检测");
     }
     var matching = resolverCountries.filter(function (country) {
       return targetCountries.indexOf(country) >= 0;
     });
     if (matching.length === resolverCountries.length) {
-      return identitySignal("match", 0.9, evidence + "；与目标或出口地区一致", "DNS 泄漏检测");
+      return identitySignal("match", 0.9, evidence + "；与" + comparisonRegion + "一致", "DNS 泄漏检测");
     }
     if (matching.length) {
-      return identitySignal("partial", 0.75, evidence + "；仅部分解析器与目标或出口地区一致", "DNS 泄漏检测");
+      return identitySignal("partial", 0.75, evidence + "；仅部分解析器与" + comparisonRegion + "一致", "DNS 泄漏检测");
     }
-    return identitySignal("mismatch", 0.88, evidence + "；与目标或出口地区存在明确差异", "DNS 泄漏检测");
+    return identitySignal("mismatch", 0.88, evidence + "；与" + comparisonRegion + "存在明确差异", "DNS 泄漏检测");
   }
 
   function identityWebrtcSignal() {
@@ -4714,7 +4716,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     var unlike = (identity.differences || identity.unlike || []).slice(0, 2).map(function (item) {
       return item.text;
     });
-    var scoreText = identity.isScoreReady ? identity.score + "/100" : "分析中";
+    var scoreText = identity.isScoreReady ? identity.score + "/100" : "证据不足，暂不评分";
     function build(compact) {
       var generic = identity.profile.id === "generic";
       var lines = generic
@@ -5079,7 +5081,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     if (identity) {
       var identityScoreLine = identity.profile.id === "generic"
         ? "- 匹配分：未预设目标画像，不展示百分制匹配分"
-        : "- Identity Match Score：" + (identity.isScoreReady ? identity.score + "/100" : "分析中");
+        : "- Identity Match Score：" + (identity.isScoreReady ? identity.score + "/100" : "证据不足，暂不评分");
       lines.push(
         "",
         "## 数字身份匹配",
@@ -5521,8 +5523,6 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           : analysis.score >= 40
             ? "mixed"
             : "low";
-    var scoreDisplay = analysis.isScoreReady ? analysis.score : "··";
-    var scoreTotal = analysis.isScoreReady ? "/100" : "证据收集中";
     var caps = (analysis.caps || [])
       .map(function (cap) {
         return '<p class="identity-summary-note">评分上限 ' + escapeHtml(cap.cap) + "：" + escapeHtml(cap.reason) + "</p>";
@@ -5548,11 +5548,11 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         "</p></div></div>";
     var scoreMarkup = isGeneric
       ? ""
-      : '<div class="identity-match-score"><span class="identity-match-score-label">Identity Match Score</span><strong class="identity-match-score-value" id="identity-match-score">' +
-        escapeHtml(scoreDisplay) +
-        '</strong><span class="identity-score-total">' +
-        escapeHtml(scoreTotal) +
-        "</span></div>";
+      : analysis.isScoreReady
+        ? '<div class="identity-match-score" data-score-state="ready"><span class="identity-match-score-label">Identity Match Score</span><strong class="identity-match-score-value" id="identity-match-score">' +
+          escapeHtml(analysis.score) +
+          '</strong><span class="identity-score-total">/100</span></div>'
+        : '<div class="identity-match-score" data-score-state="unavailable"><span class="identity-match-score-label">Identity Match Score</span><strong class="identity-match-score-value" id="identity-match-score">证据不足</strong><span class="identity-score-total">暂不评分</span></div>';
     root.innerHTML =
       '<div class="identity-result"><section class="identity-summary-card identity-score-' +
       scoreTone +
@@ -5639,14 +5639,21 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         return;
       }
       var signals = grouped[sectionId];
+      var sectionHeading = section.querySelector(":scope > .section-head .section-title");
+      var sectionName = sectionHeading
+        ? sectionHeading.textContent.replace(/\s+/g, " ").trim()
+        : sectionId;
       var wrapper = document.createElement("section");
       var headingId = sectionId + "-identity-match-title";
       wrapper.className = "identity-section-match";
+      wrapper.setAttribute("role", "region");
       wrapper.setAttribute("aria-labelledby", headingId);
       wrapper.innerHTML =
         '<div class="identity-section-match-head"><h3 id="' +
         escapeHtml(headingId) +
-        '">目标身份匹配</h3><span>' +
+        '"><span class="visually-hidden">' +
+        escapeHtml(sectionName + " · ") +
+        "</span>目标身份匹配</h3><span>" +
         signals.length +
         ' 项信号，点击查看依据</span></div><div class="identity-section-match-grid">' +
         signals.map(renderEmbeddedIdentitySignal).join("") +
@@ -6526,7 +6533,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     return (
       '<section class="section" id="sec-conn" aria-labelledby="sec-conn-title">' +
       renderSectionHead("网络连通", "是否大陆直连", renderSectionAction("↻ 重测", "run-conn"), "sec-conn-title") +
-      '<div class="panel conn-panel">' +
+      '<div class="panel conn-panel"><div class="conn-panel-body">' +
       groups
         .map(function (group) {
           return (
@@ -6553,7 +6560,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           );
         })
         .join("") +
-      '<p class="conn-note">浏览器探针只判断能否建立跨站请求，不读取内容、不带 referrer。AI 服务和部分中国站点会拦截跨源探针；这类结果显示为“浏览器受限”或“未确认”，不等同于网站不可用。大陆探针只依据全球站点 · 常被墙与中国站点的可达性，AI 服务仅用于排障展示，不参与大陆直连扣分。</p></div></section>'
+      '<p class="conn-note">浏览器探针只判断能否建立跨站请求，不读取内容、不带 referrer。AI 服务和部分中国站点会拦截跨源探针；这类结果显示为“浏览器受限”或“未确认”，不等同于网站不可用。大陆探针只依据全球站点 · 常被墙与中国站点的可达性，AI 服务仅用于排障展示，不参与大陆直连扣分。</p></div></div></section>'
     );
   }
 
