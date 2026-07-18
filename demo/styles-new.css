@@ -21,8 +21,10 @@
   --icon-yellow-ink: #846c2d;
   --red: oklch(0.58 0.16 25);
   --red-soft: oklch(0.92 0.05 25);
+  --status-red-ink: #96382f;
   --pending: #b7b7af;
   --pending-soft: #ededeb;
+  --status-pending-ink: #595952;
   --shadow: 0 24px 70px rgba(31, 31, 25, 0.08);
   --tooltip-bg: #fffefa;
   --tooltip-border: #deded8;
@@ -265,31 +267,6 @@ html::-webkit-scrollbar-track {
 .text-action:active,
 .underlink:active {
   transform: translateY(1px);
-}
-
-.github-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-bottom: 0;
-  color: var(--ink-2);
-  font: 11.5px/1 var(--mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.github-link svg {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
-}
-
-#star-count {
-  display: inline-block;
-  min-width: 1ch;
 }
 
 .anchor-nav {
@@ -977,25 +954,25 @@ body[data-app-stage="result"] .analysis-progress {
 .signal-card[data-status="match"] .signal-value,
 .identity-signal-card[data-status="match"] .identity-signal-status,
 .match-detail-row[data-status="match"] .match-detail-status {
-  color: var(--green);
+  color: var(--status-green-ink);
 }
 
 .signal-card[data-status="partial"] .signal-value,
 .identity-signal-card[data-status="partial"] .identity-signal-status,
 .match-detail-row[data-status="partial"] .match-detail-status {
-  color: #b8791d;
+  color: var(--status-amber-ink);
 }
 
 .signal-card[data-status="mismatch"] .signal-value,
 .identity-signal-card[data-status="mismatch"] .identity-signal-status,
 .match-detail-row[data-status="mismatch"] .match-detail-status {
-  color: var(--red);
+  color: var(--status-red-ink);
 }
 
 .signal-card[data-status="unknown"] .signal-value,
 .identity-signal-card[data-status="unknown"] .identity-signal-status,
 .match-detail-row[data-status="unknown"] .match-detail-status {
-  color: var(--muted);
+  color: var(--status-pending-ink);
 }
 
 .reason-columns,
@@ -1297,19 +1274,19 @@ body[data-app-stage="result"] .analysis-progress {
 }
 
 .identity-details-status[data-status="match"] {
-  color: var(--green);
+  color: var(--status-green-ink);
 }
 
 .identity-details-status[data-status="partial"] {
-  color: #b8791d;
+  color: var(--status-amber-ink);
 }
 
 .identity-details-status[data-status="mismatch"] {
-  color: var(--red);
+  color: var(--status-red-ink);
 }
 
 .identity-details-status[data-status="unknown"] {
-  color: var(--muted);
+  color: var(--status-pending-ink);
 }
 
 .score-stage {
@@ -2389,15 +2366,6 @@ body[data-app-stage="result"] .analysis-progress {
   color: var(--icon-yellow-ink);
 }
 
-.floating-github {
-  position: relative;
-  font-variant-numeric: tabular-nums;
-}
-
-.floating-github-icon {
-  animation: floating-github-breathe 6.4s ease-in-out infinite;
-}
-
 .floating-action-label {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2519,19 +2487,6 @@ body[data-app-stage="result"] .analysis-progress {
   }
 }
 
-@keyframes floating-github-breathe {
-  0%,
-  100% {
-    color: #586579;
-    filter: drop-shadow(0 0 0 rgba(34, 143, 70, 0));
-  }
-
-  50% {
-    color: #2b9348;
-    filter: drop-shadow(0 0 5px rgba(34, 143, 70, 0.3));
-  }
-}
-
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;
@@ -2601,31 +2556,6 @@ body[data-app-stage="result"] .analysis-progress {
     gap: 7px;
   }
 
-  .floating-actions .floating-github {
-    position: relative;
-  }
-
-  .floating-github .floating-github-label {
-    position: absolute;
-    top: -5px;
-    right: -6px;
-    display: grid;
-    min-width: 19px;
-    height: 19px;
-    place-items: center;
-    overflow: visible;
-    border: 2px solid var(--paper);
-    border-radius: 999px;
-    background: #405535;
-    color: #ffffff;
-    font-size: 0;
-    line-height: 1;
-  }
-
-  .floating-github .floating-github-label #star-count {
-    min-width: 0;
-    font: 700 9px/1 var(--mono);
-  }
 }
 
 @media (max-width: 720px), (max-height: 560px) {
@@ -2644,22 +2574,6 @@ body[data-app-stage="result"] .analysis-progress {
     max-width: none;
   }
 
-  .floating-actions .floating-github {
-    position: absolute;
-    flex: 0 0 auto;
-    right: 0;
-    bottom: calc(100% + 8px);
-    width: auto;
-    min-width: 102px;
-    min-height: 40px;
-    justify-content: center;
-    border-radius: 999px;
-    padding: 0 11px;
-  }
-
-  .floating-github .floating-action-label {
-    display: inline;
-  }
 }
 
 @media (max-width: 360px) {
@@ -2678,10 +2592,6 @@ body[data-app-stage="result"] .analysis-progress {
     height: 18px;
   }
 
-  .floating-actions .floating-github {
-    width: auto;
-    min-width: 98px;
-  }
 }
 
 @media (max-width: 300px) {
@@ -3448,16 +3358,6 @@ body[data-app-stage="result"] .analysis-progress {
     font-size: 10.5px;
   }
 
-  .github-link {
-    gap: 4px;
-    font-size: 10.5px;
-  }
-
-  .github-link svg {
-    width: 14px;
-    height: 14px;
-  }
-
   .nav-scroll {
     gap: 20px;
     padding: 0 24px 7px 0;
@@ -4072,10 +3972,6 @@ body[data-app-stage="result"] .analysis-progress {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .floating-github-icon {
-    animation: none !important;
-  }
-
   *,
   *::before,
   *::after {
@@ -4533,8 +4429,7 @@ body[data-layout="identity-demo-v2"] h1[tabindex="-1"]:focus {
   gap: 7px;
 }
 
-.floating-action,
-.floating-actions .floating-github {
+.floating-action {
   position: relative;
   flex: 0 0 44px;
   justify-content: center;

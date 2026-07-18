@@ -122,12 +122,13 @@ test("serves the isolated identity demo and its browser assets", async () => {
   assert.match(html, /href="\.\.\/favicon\.svg/);
   assert.match(html, /styles-new\.min\.css/);
   assert.match(html, /app-new\.min\.js/);
+  assert.match(html, /src="\.\.\/assets\/merged_ai_logo\.svg\?v=20260718-4"/);
   assert.doesNotMatch(html, /(?:src|href)="favicon\.svg/);
 
   for (const [pathname, contentType] of [
     ["/demo/styles-new.min.css", /^text\/css/],
     ["/demo/app-new.min.js", /^text\/javascript/],
-    ["/demo/assets/merged_ai_logo.svg", /^image\/svg\+xml/],
+    ["/assets/merged_ai_logo.svg", /^image\/svg\+xml/],
   ]) {
     const response = await worker.fetch(
       new Request(`https://ai-signal-guard.example${pathname}`),

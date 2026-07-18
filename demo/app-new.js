@@ -5,7 +5,6 @@ import { analyzeIdentity } from "../identityAnalysis.js";
   "use strict";
 
   var RING_CIRCUMFERENCE = 326.726;
-  var REPO = "betaer/AiSignalGuard";
   var NAV = [
     ["identity-summary", "身份总结"],
     ["identity-reasons", "匹配原因"],
@@ -5926,8 +5925,8 @@ import { analyzeIdentity } from "../identityAnalysis.js";
       "#copy-ai-report",
       "ai-report",
       ".floating-copy-ai-label",
-      "分享给 AI",
-      "分享给 AI"
+      "复制给AI诊断",
+      "复制给AI诊断"
     );
     syncFloatingCopyAction(
       "#copy-summary",
@@ -5952,10 +5951,15 @@ import { analyzeIdentity } from "../identityAnalysis.js";
     button.classList.toggle("is-copying", copying);
     button.dataset.copyState = copied ? "copied" : copying ? "copying" : failed ? "failed" : "idle";
     button.disabled = copying;
-    button.setAttribute(
-      "aria-label",
-      copied ? idleLabel + "：已复制" : copying ? idleLabel + "：正在复制" : failed ? idleLabel + "：复制失败" : idleAriaLabel
-    );
+    var stateLabel = copied
+      ? idleLabel + "：已复制"
+      : copying
+        ? idleLabel + "：正在复制"
+        : failed
+          ? idleLabel + "：复制失败"
+          : idleAriaLabel;
+    button.setAttribute("aria-label", stateLabel);
+    button.title = stateLabel;
     if (label) {
       label.textContent = copied ? "已复制" : copying ? "复制中…" : failed ? "复制失败" : idleLabel;
     }
@@ -7121,30 +7125,6 @@ import { analyzeIdentity } from "../identityAnalysis.js";
     document.head.appendChild(script);
   }
 
-  function loadStars() {
-    getJson("https://api.github.com/repos/" + REPO, 8000, false)
-      .then(function (repo) {
-        var count = repo.stargazers_count;
-        var countText = typeof count === "number" ? String(count) : "Star";
-        var starCount = $("#star-count");
-        var githubShortcut = $("#github-shortcut");
-        if (starCount) {
-          starCount.textContent = countText;
-        }
-        if (githubShortcut) {
-          var label = typeof count === "number" ? "打开 GitHub 仓库，" + count + " 个 Star" : "打开 GitHub 仓库";
-          githubShortcut.setAttribute("aria-label", label);
-          githubShortcut.title = label;
-        }
-      })
-      .catch(function () {
-        var starCount = $("#star-count");
-        if (starCount) {
-          starCount.textContent = "Star";
-        }
-      });
-  }
-
   function reapplyRegion() {
     // 口径只影响分类判定，本地重算即可，不重发任何网络请求。
     runLocalSignals(true);
@@ -7276,8 +7256,5 @@ import { analyzeIdentity } from "../identityAnalysis.js";
     setAppStage("select");
     renderIdentitySelectionState();
     startIdentityAutoCountdown();
-    scheduleAfterPaint(function () {
-      scheduleIdle(loadStars, 2200);
-    }, 1200);
   });
 })();

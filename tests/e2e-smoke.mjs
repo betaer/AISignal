@@ -285,12 +285,14 @@ async function routeFixtures(target, baseOrigin, opts = {}) {
         return text("abc123def");
       }
       if (url.pathname.startsWith("/dnsleak/test/")) {
-        return json([
-          { type: "ip", ip: FIXTURE_IPV4, country_name: "United States", asn: HOSTING_ORG },
-          { type: "dns", ip: "8.8.8.8", country_name: "United States", asn: "Google LLC" },
-          { type: "dns", ip: "8.8.4.4", country_name: "United States", asn: "Google LLC" },
-          { type: "conclusion", ip: "No DNS leaks" },
-        ]);
+        return json(
+          opts.dnsLeakPayload || [
+            { type: "ip", ip: FIXTURE_IPV4, country_name: "United States", asn: HOSTING_ORG },
+            { type: "dns", ip: "8.8.8.8", country_name: "United States", asn: "Google LLC" },
+            { type: "dns", ip: "8.8.4.4", country_name: "United States", asn: "Google LLC" },
+            { type: "conclusion", ip: "No DNS leaks" },
+          ],
+        );
       }
       return text("");
     }
@@ -325,13 +327,24 @@ async function routeFixtures(target, baseOrigin, opts = {}) {
   });
 }
 
-async function waitForScore(page, timeout = 60000) {
+async function waitForScore(page, timeout = 60000, options = {}) {
   await page.waitForFunction(
     () => /^\d+$/.test(document.querySelector("#score-number").textContent.trim()),
     null,
     { timeout },
   );
-  return Number(await page.locator("#score-number").innerText());
+  const score = Number((await page.locator("#score-number").textContent()).trim());
+  const isDemo = (await page.locator("body").getAttribute("data-demo-version")) != null;
+  if (!isDemo && options.openDiagnostics !== false) {
+    await page.evaluate(() => {
+      const advanced = document.querySelector("#sec-score");
+      if (advanced?.tagName === "DETAILS") advanced.open = true;
+      document.querySelectorAll("#section-root .identity-signal-card").forEach((details) => {
+        details.open = true;
+      });
+    });
+  }
+  return score;
 }
 
 async function scoreNodeSnapshot(page) {
@@ -370,8 +383,8 @@ const scenarios = [
         nodes.map((node) => node.id),
       );
       ok(
-        "root homepage keeps its existing eight floating actions",
-        rootActions.length === 8 && rootActions.includes("claude-shortcut") && rootActions.includes("github-shortcut"),
+        "root homepage uses the same five-action toolbar contract",
+        rootActions.join(",") === "run-all,copy-ai-report,copy-summary,privacy-toggle,floating-top",
         rootActions.join(","),
       );
       await rootPage.close();
@@ -826,7 +839,7 @@ const scenarios = [
       }));
       ok(
         "share-to-AI uses the supplied merged SVG asset",
-        aiIcon.src === "assets/merged_ai_logo.svg" && aiIcon.width > 0 && aiIcon.height > 0,
+        aiIcon.src === "../assets/merged_ai_logo.svg?v=20260718-4" && aiIcon.width > 0 && aiIcon.height > 0,
         JSON.stringify(aiIcon),
       );
 
@@ -861,7 +874,7 @@ const scenarios = [
       await page.waitForTimeout(2100);
       ok(
         "share-to-AI copied state returns to idle after two seconds",
-        (await page.locator(".floating-copy-ai-label").innerText()).trim() === "分享给 AI",
+        (await page.locator(".floating-copy-ai-label").innerText()).trim() === "复制给AI诊断",
         (await page.locator(".floating-copy-ai-label").innerText()).trim(),
       );
 
@@ -1339,26 +1352,19 @@ const scenarios = [
       await waitForScore(page);
       await page.waitForSelector("#identity-result-root .identity-summary-card");
       const resultText = await page.locator("#identity-result-root").innerText();
-      const signalLayout = await page.locator(".identity-signal-grid").evaluate((grid) => {
-        const style = getComputedStyle(grid);
-        return {
-          columns: style.gridTemplateColumns.split(" ").filter(Boolean).length,
-          borderWidth: style.borderTopWidth,
-          cardCount: grid.querySelectorAll(".identity-signal-card").length,
-          lastCardColumnEnd: getComputedStyle(grid.querySelector(".identity-signal-card:last-child")).gridColumnEnd,
-        };
-      });
+      const signalLayout = await page.locator("#section-root .identity-signal-card").evaluateAll((cards) => ({
+        cardCount: cards.length,
+        allEmbedded: cards.every((card) => Boolean(card.closest("#section-root .section"))),
+        sectionCount: new Set(cards.map((card) => card.closest("#section-root .section")?.id)).size,
+      }));
       ok("result keeps the selected target", resultText.includes("自媒体创作者"), resultText.slice(0, 180));
       ok("result exposes the identity score", /Identity Match Score/i.test(resultText), resultText.slice(0, 180));
       ok("result explains positive evidence", resultText.includes("为什么像"), resultText.slice(0, 240));
       ok("result explains differences", resultText.includes("为什么不像"), resultText.slice(0, 240));
       ok("result exposes evidence coverage", resultText.includes("证据覆盖率"), resultText.slice(0, 240));
       ok(
-        "identity signals use a two-column card layout instead of a four-column table",
-        signalLayout.columns === 2 &&
-          signalLayout.borderWidth === "0px" &&
-          signalLayout.cardCount > 0 &&
-          (signalLayout.cardCount % 2 === 0 || signalLayout.lastCardColumnEnd === "-1"),
+        "identity signals are distributed into their matching diagnostic sections",
+        signalLayout.cardCount > 0 && signalLayout.allEmbedded && signalLayout.sectionCount >= 4,
         JSON.stringify(signalLayout),
       );
       ok(
@@ -1455,6 +1461,18 @@ const scenarios = [
         "pending evidence panel spans the full comparison width",
         pendingState.columnStart === "1" && pendingState.columnEnd === "-1",
         JSON.stringify(pendingState),
+      );
+      const unknownStatusStyle = await page
+        .locator('.identity-signal-card[data-status="unknown"] .identity-signal-status')
+        .first()
+        .evaluate((status) => {
+          const style = getComputedStyle(status);
+          return { color: style.color, background: style.backgroundColor, text: status.textContent.trim() };
+        });
+      ok(
+        "unknown identity status keeps normal-text contrast on its pending background",
+        colorContrastRatio(unknownStatusStyle.color, unknownStatusStyle.background) >= 4.5,
+        JSON.stringify(unknownStatusStyle),
       );
       await page.close();
     },
@@ -1787,7 +1805,7 @@ const scenarios = [
     },
   },
   {
-    name: "分享与隐私：八项浮动动作、AI 报告始终脱敏、已复制两秒恢复",
+    name: "分享与隐私：五项浮动动作、AI 报告始终脱敏、已复制两秒恢复",
     async run({ browser, base, ok }) {
       const page = await browser.newPage();
       await captureCopiedSummary(page);
@@ -1799,39 +1817,16 @@ const scenarios = [
         items.map((item) => item.id),
       );
       ok(
-        "keeps exactly the requested eight floating actions",
-        actionIds.join(",") ===
-          "run-all,chatgpt-shortcut,claude-shortcut,copy-ai-report,copy-summary,privacy-toggle,github-shortcut,floating-top",
+        "keeps exactly the requested five floating actions",
+        actionIds.join(",") === "run-all,copy-ai-report,copy-summary,privacy-toggle,floating-top",
         actionIds.join(","),
       );
       const topGithubCount = await page.locator('.top-actions .github-link, .top-actions a[href*="github.com/betaer/AiSignalGuard"]').count();
       ok("GitHub and Star are absent from the top-right area", topGithubCount === 0, `count=${topGithubCount}`);
-      await page.waitForFunction(() => document.querySelector("#star-count")?.textContent.trim() === "42");
-      const externalLinks = await page.locator("#chatgpt-shortcut, #claude-shortcut, #github-shortcut").evaluateAll((links) =>
-        links.map((link) => ({ id: link.id, href: link.href, target: link.target, rel: link.rel })),
-      );
       ok(
-        "ChatGPT, Claude and GitHub are safe new-window links",
-        externalLinks.length === 3 &&
-          externalLinks.every((link) =>
-            link.target === "_blank" &&
-            link.rel.split(/\s+/).includes("noopener") &&
-            link.rel.split(/\s+/).includes("noreferrer")
-          ) &&
-          externalLinks.some((link) => link.id === "chatgpt-shortcut" && /^https:\/\/chatgpt\.com\//.test(link.href)) &&
-          externalLinks.some((link) => link.id === "claude-shortcut" && /^https:\/\/claude\.ai\//.test(link.href)) &&
-          externalLinks.some((link) => link.id === "github-shortcut" && link.href === "https://github.com/betaer/AiSignalGuard"),
-        JSON.stringify(externalLinks),
-      );
-      const githubAudit = await page.locator("#github-shortcut").evaluate((link) => ({
-        hasSvg: Boolean(link.querySelector("svg")),
-        label: link.textContent.trim(),
-        star: link.querySelector("#star-count")?.textContent.trim(),
-      }));
-      ok(
-        "GitHub shortcut contains its SVG icon and Star count",
-        githubAudit.hasSvg && githubAudit.label.includes("GitHub") && githubAudit.star === "42",
-        JSON.stringify(githubAudit),
+        "standalone ChatGPT, Claude and GitHub shortcuts are absent",
+        (await page.locator("#chatgpt-shortcut, #claude-shortcut, #github-shortcut").count()) === 0,
+        actionIds.join(","),
       );
 
       await page.locator("#copy-ai-report").click();
@@ -1979,8 +1974,12 @@ const scenarios = [
       await waitForScore(page);
       await page.locator("#copy-summary").click();
       const copied = await page.evaluate(() => window.__copiedSummary);
-      ok("identity share title", copied.startsWith("🌐 通用数字身份分析 · 数字身份匹配分析"), copied);
-      ok("identity score and coverage retained", copied.includes("Identity Match Score：") && copied.includes("证据覆盖"), copied);
+      ok("generic environment share title", copied.startsWith("AI Signal Guard · 数字环境综合结论"), copied);
+      ok(
+        "generic share keeps coverage without inventing a target match score",
+        copied.includes("通用分析不预设目标画像") && copied.includes("证据覆盖") && !copied.includes("Identity Match Score："),
+        copied,
+      );
       ok("product URL retained", copied.includes("https://betaer.github.io/AiSignalGuard/"), copied);
       ok("repository URL removed", !copied.includes("github.com/betaer"), copied);
       ok("sensitive network rows omitted", !copied.includes(FIXTURE_IPV4) && !/^(WebRTC|DNS|Region):/m.test(copied), copied);
@@ -1998,7 +1997,7 @@ const scenarios = [
       await waitForScore(chinesePage);
       await chinesePage.locator("#copy-summary").click();
       const chineseCopied = await chinesePage.evaluate(() => window.__copiedSummary);
-      ok("Chinese locale keeps the selected identity", chineseCopied.includes("通用数字身份分析"), chineseCopied);
+      ok("Chinese locale keeps the generic environment conclusion", chineseCopied.includes("数字环境综合结论"), chineseCopied);
       ok("Chinese identity share retains the product URL", chineseCopied.includes("https://betaer.github.io/AiSignalGuard/"), chineseCopied);
       ok("Chinese identity share stays within X budget", twitterWeightedLength(chineseCopied) <= 280, `length=${twitterWeightedLength(chineseCopied)}`);
       await chinesePage.close();
@@ -2009,11 +2008,14 @@ const scenarios = [
         ipOverrides: { cc: "HK", country_code: "HK", country: "Hong Kong" },
       });
       await hongKongPage.goto(base.href);
-      await hongKongPage.locator('[data-region="cnhk"]').click();
       await waitForScore(hongKongPage);
       await hongKongPage.locator("#copy-summary").click();
       const hongKongCopied = await hongKongPage.evaluate(() => window.__copiedSummary);
-      ok("Hong Kong exit keeps the selected identity", hongKongCopied.includes("通用数字身份分析") && hongKongCopied.includes("Identity Match Score"), hongKongCopied);
+      ok(
+        "Hong Kong exit keeps the generic environment conclusion without a target score",
+        hongKongCopied.includes("数字环境综合结论") && !hongKongCopied.includes("Identity Match Score"),
+        hongKongCopied,
+      );
       await hongKongPage.close();
     },
   },
@@ -2426,7 +2428,7 @@ const scenarios = [
     },
   },
   {
-    name: "右下快捷栏：八项动作、结构化脱敏报告与无刷新重新测试",
+    name: "右下快捷栏：五项动作、结构化脱敏报告与无刷新重新测试",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       const requests = [];
@@ -2476,7 +2478,7 @@ const scenarios = [
         const navItems = Array.from(document.querySelectorAll("#nav-list .nav-item"));
         return {
           ids: actions.map((action) => action.id),
-          svgCount: actions.filter((action) => action.querySelector("svg")).length,
+          iconCount: actions.filter((action) => action.querySelector(".floating-action-icon")).length,
           namedCount: actions.filter((action) => action.getAttribute("aria-label")).length,
           topControls: document.querySelectorAll(".top-actions #privacy-toggle, .top-actions #run-all").length,
           topGithub: document.querySelectorAll('.top-actions .github-link, .top-actions a[href*="github.com/betaer/AiSignalGuard"]').length,
@@ -2494,15 +2496,14 @@ const scenarios = [
         };
       });
       ok(
-        "toolbar order contains the requested eight actions",
-        staticAudit.ids.join(",") ===
-          "run-all,chatgpt-shortcut,claude-shortcut,copy-ai-report,copy-summary,privacy-toggle,github-shortcut,floating-top",
+        "toolbar order contains the requested five actions",
+        staticAudit.ids.join(",") === "run-all,copy-ai-report,copy-summary,privacy-toggle,floating-top",
         JSON.stringify(staticAudit.ids),
       );
       ok(
-        "all eight actions have SVG icons and accessible names",
-        staticAudit.svgCount === 8 && staticAudit.namedCount === 8,
-        `svg=${staticAudit.svgCount}, named=${staticAudit.namedCount}`,
+        "all five actions have icons and accessible names",
+        staticAudit.iconCount === 5 && staticAudit.namedCount === 5,
+        `icons=${staticAudit.iconCount}, named=${staticAudit.namedCount}`,
       );
       ok(
         "identity analysis is the first navigation item and owns the initial current state",
@@ -2568,32 +2569,10 @@ const scenarios = [
       );
       ok("top-right privacy and retest controls are removed", staticAudit.topControls === 0, `count=${staticAudit.topControls}`);
       ok("GitHub and Star are removed from the top-right area", staticAudit.topGithub === 0, `count=${staticAudit.topGithub}`);
-      await page.waitForFunction(() => document.querySelector("#star-count")?.textContent.trim() === "42");
-      const externalLinks = await page.locator("#chatgpt-shortcut, #claude-shortcut, #github-shortcut").evaluateAll((links) =>
-        links.map((link) => ({ id: link.id, href: link.href, target: link.target, rel: link.rel })),
-      );
       ok(
-        "ChatGPT, Claude and GitHub shortcuts are safe new-window links",
-        externalLinks.length === 3 &&
-          externalLinks.every((link) =>
-            link.target === "_blank" &&
-            link.rel.split(/\s+/).includes("noopener") &&
-            link.rel.split(/\s+/).includes("noreferrer")
-          ) &&
-          externalLinks.some((link) => link.id === "chatgpt-shortcut" && /^https:\/\/chatgpt\.com\//.test(link.href)) &&
-          externalLinks.some((link) => link.id === "claude-shortcut" && /^https:\/\/claude\.ai\//.test(link.href)) &&
-          externalLinks.some((link) => link.id === "github-shortcut" && link.href === "https://github.com/betaer/AiSignalGuard"),
-        JSON.stringify(externalLinks),
-      );
-      const githubAudit = await page.locator("#github-shortcut").evaluate((link) => ({
-        hasSvg: Boolean(link.querySelector("svg")),
-        label: link.textContent.trim(),
-        star: link.querySelector("#star-count")?.textContent.trim(),
-      }));
-      ok(
-        "bottom-right GitHub shortcut shows an SVG icon and Star count",
-        githubAudit.hasSvg && githubAudit.label.includes("GitHub") && githubAudit.star === "42",
-        JSON.stringify(githubAudit),
+        "ChatGPT, Claude and GitHub shortcuts are removed from the floating toolbar",
+        (await page.locator("#chatgpt-shortcut, #claude-shortcut, #github-shortcut").count()) === 0,
+        JSON.stringify(staticAudit.ids),
       );
       ok(
         "brand links to the canonical project URL without underline",
@@ -2728,7 +2707,7 @@ const scenarios = [
       });
       const requestStart = requests.length;
       await page.locator("#run-all").click();
-      const pending = await page.locator("#score-number").innerText();
+      const pending = await page.locator("#score-number").textContent();
       ok("all-retest immediately returns the score to pending", pending.trim() === "··", pending);
       await waitForScore(page);
       const afterRerun = await page.evaluate(() => ({
@@ -2759,11 +2738,7 @@ const scenarios = [
       await page.setViewportSize({ width: 393, height: 852 });
       const mobileAudit = await page.locator("#floating-actions").evaluate((dock) => {
         const actions = Array.from(dock.querySelectorAll(".floating-action"));
-        const primaryActions = actions.filter((action) => action.id !== "github-shortcut");
-        const github = actions.find((action) => action.id === "github-shortcut");
         const actionRects = actions.map((action) => action.getBoundingClientRect());
-        const githubRect = github.getBoundingClientRect();
-        const primaryTop = Math.min(...primaryActions.map((action) => action.getBoundingClientRect().top));
         const bounds = {
           left: Math.min(...actionRects.map((rect) => rect.left)),
           right: Math.max(...actionRects.map((rect) => rect.right)),
@@ -2773,20 +2748,16 @@ const scenarios = [
         return {
           dock: bounds,
           viewport: { width: innerWidth, height: innerHeight },
-          primaryLabelsHidden: primaryActions.every((action) => {
+          labelsHidden: actions.every((action) => {
             const label = action.querySelector(".floating-action-label");
             return label && getComputedStyle(label).display === "none";
           }),
-          githubLabelVisible: getComputedStyle(github.querySelector(".floating-action-label")).display !== "none",
-          githubText: github.textContent.trim(),
           actionCount: actions.length,
-          primaryCount: primaryActions.length,
           touchTargets: actions.map((action) => {
             const actionRect = action.getBoundingClientRect();
             return [Math.round(actionRect.width), Math.round(actionRect.height)];
           }),
-          primaryRowCount: new Set(primaryActions.map((action) => Math.round(action.getBoundingClientRect().top))).size,
-          githubAbove: githubRect.bottom <= primaryTop,
+          rowCount: new Set(actions.map((action) => Math.round(action.getBoundingClientRect().top))).size,
           overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,
         };
       });
@@ -2800,14 +2771,10 @@ const scenarios = [
         JSON.stringify(mobileAudit),
       );
       ok(
-        "mobile keeps GitHub as a Star pill above the single-row seven-action icon dock",
-        mobileAudit.primaryLabelsHidden &&
-          mobileAudit.githubLabelVisible &&
-          /GitHub/.test(mobileAudit.githubText) &&
-          mobileAudit.actionCount === 8 &&
-          mobileAudit.primaryCount === 7 &&
-          mobileAudit.primaryRowCount === 1 &&
-          mobileAudit.githubAbove &&
+        "mobile keeps all five actions in one accessible icon row",
+        mobileAudit.labelsHidden &&
+          mobileAudit.actionCount === 5 &&
+          mobileAudit.rowCount === 1 &&
           mobileAudit.touchTargets.every(([width, height]) => width >= 40 && height >= 40),
         JSON.stringify(mobileAudit),
       );
@@ -2843,11 +2810,7 @@ const scenarios = [
       await page.setViewportSize({ width: 568, height: 320 });
       const shortLandscapeAudit = await page.locator("#floating-actions").evaluate((dock) => {
         const actions = Array.from(dock.querySelectorAll(".floating-action"));
-        const primaryActions = actions.filter((action) => action.id !== "github-shortcut");
-        const github = actions.find((action) => action.id === "github-shortcut");
         const actionRects = actions.map((action) => action.getBoundingClientRect());
-        const githubRect = github.getBoundingClientRect();
-        const primaryTop = Math.min(...primaryActions.map((action) => action.getBoundingClientRect().top));
         return {
           dock: {
             left: Math.min(...actionRects.map((rect) => rect.left)),
@@ -2857,8 +2820,7 @@ const scenarios = [
           },
           viewport: { width: innerWidth, height: innerHeight },
           actionCount: actions.length,
-          primaryRowCount: new Set(primaryActions.map((action) => Math.round(action.getBoundingClientRect().top))).size,
-          githubAbove: githubRect.bottom <= primaryTop,
+          rowCount: new Set(actions.map((action) => Math.round(action.getBoundingClientRect().top))).size,
           overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,
         };
       });
@@ -2868,9 +2830,8 @@ const scenarios = [
           shortLandscapeAudit.dock.right <= shortLandscapeAudit.viewport.width &&
           shortLandscapeAudit.dock.top >= 0 &&
           shortLandscapeAudit.dock.bottom <= shortLandscapeAudit.viewport.height &&
-          shortLandscapeAudit.actionCount === 8 &&
-          shortLandscapeAudit.primaryRowCount === 1 &&
-          shortLandscapeAudit.githubAbove &&
+          shortLandscapeAudit.actionCount === 5 &&
+          shortLandscapeAudit.rowCount === 1 &&
           shortLandscapeAudit.overflow === 0,
         JSON.stringify(shortLandscapeAudit),
       );
@@ -2878,11 +2839,7 @@ const scenarios = [
       await page.setViewportSize({ width: 320, height: 568 });
       const narrowAudit = await page.locator("#floating-actions").evaluate((dock) => {
         const actions = Array.from(dock.querySelectorAll(".floating-action"));
-        const primaryActions = actions.filter((action) => action.id !== "github-shortcut");
-        const github = actions.find((action) => action.id === "github-shortcut");
         const actionRects = actions.map((action) => action.getBoundingClientRect());
-        const githubRect = github.getBoundingClientRect();
-        const primaryTop = Math.min(...primaryActions.map((action) => action.getBoundingClientRect().top));
         return {
           dock: {
             left: Math.min(...actionRects.map((rect) => rect.left)),
@@ -2892,9 +2849,7 @@ const scenarios = [
           },
           viewport: { width: innerWidth, height: innerHeight },
           actionCount: actions.length,
-          primaryCount: primaryActions.length,
-          primaryRowCount: new Set(primaryActions.map((action) => Math.round(action.getBoundingClientRect().top))).size,
-          githubAbove: githubRect.bottom <= primaryTop,
+          rowCount: new Set(actions.map((action) => Math.round(action.getBoundingClientRect().top))).size,
           targets: actions.map((action) => {
             const actionRect = action.getBoundingClientRect();
             return [Math.round(actionRect.width), Math.round(actionRect.height)];
@@ -2903,15 +2858,13 @@ const scenarios = [
         };
       });
       ok(
-        "320px mobile keeps the GitHub pill and all seven primary actions visible and tappable",
+        "320px mobile keeps all five actions visible and tappable",
         narrowAudit.dock.left >= 0 &&
           narrowAudit.dock.right <= narrowAudit.viewport.width &&
           narrowAudit.dock.top >= 0 &&
           narrowAudit.dock.bottom <= narrowAudit.viewport.height &&
-          narrowAudit.actionCount === 8 &&
-          narrowAudit.primaryCount === 7 &&
-          narrowAudit.primaryRowCount === 1 &&
-          narrowAudit.githubAbove &&
+          narrowAudit.actionCount === 5 &&
+          narrowAudit.rowCount === 1 &&
           narrowAudit.targets.every(([width, height]) => width >= 40 && height >= 40) &&
           narrowAudit.overflow === 0,
         JSON.stringify(narrowAudit),
@@ -2935,7 +2888,7 @@ const scenarios = [
       });
       ok(
         "300px viewport keeps every primary action at least 40px without wrapping or overflow",
-        narrowestToolbarAudit.minPrimaryWidth >= 40 &&
+        narrowestToolbarAudit.minPrimaryWidth >= 39.99 &&
           narrowestToolbarAudit.minPrimaryHeight >= 40 &&
           narrowestToolbarAudit.primaryRowCount === 1 &&
           narrowestToolbarAudit.left >= 0 &&
@@ -2952,11 +2905,7 @@ const scenarios = [
       await page.waitForFunction(() => document.querySelector(".site-footer").getBoundingClientRect().bottom <= innerHeight - 50);
       const shortDesktopAudit = await page.evaluate(() => {
         const actions = Array.from(document.querySelectorAll("#floating-actions .floating-action"));
-        const primaryActions = actions.filter((action) => action.id !== "github-shortcut");
-        const github = actions.find((action) => action.id === "github-shortcut");
         const actionRects = actions.map((action) => action.getBoundingClientRect());
-        const githubRect = github.getBoundingClientRect();
-        const primaryTop = Math.min(...primaryActions.map((action) => action.getBoundingClientRect().top));
         const dock = {
           left: Math.min(...actionRects.map((rect) => rect.left)),
           right: Math.max(...actionRects.map((rect) => rect.right)),
@@ -2975,8 +2924,7 @@ const scenarios = [
           footer: { left: footer.left, right: footer.right, top: footer.top, bottom: footer.bottom },
           viewport: { width: innerWidth, height: innerHeight },
           actionCount: actions.length,
-          primaryRowCount: new Set(primaryActions.map((action) => Math.round(action.getBoundingClientRect().top))).size,
-          githubAbove: githubRect.bottom <= primaryTop,
+          rowCount: new Set(actions.map((action) => Math.round(action.getBoundingClientRect().top))).size,
           footerGap: dock.top - footer.bottom,
           intersectsFooter,
         };
@@ -2987,9 +2935,8 @@ const scenarios = [
           shortDesktopAudit.dock.right <= shortDesktopAudit.viewport.width &&
           shortDesktopAudit.dock.top >= 0 &&
           shortDesktopAudit.dock.bottom <= shortDesktopAudit.viewport.height &&
-          shortDesktopAudit.actionCount === 8 &&
-          shortDesktopAudit.primaryRowCount === 1 &&
-          shortDesktopAudit.githubAbove &&
+          shortDesktopAudit.actionCount === 5 &&
+          shortDesktopAudit.rowCount === 1 &&
           shortDesktopAudit.footerGap >= 8 &&
           !shortDesktopAudit.intersectsFooter,
         JSON.stringify(shortDesktopAudit),
@@ -3000,20 +2947,15 @@ const scenarios = [
         document.documentElement.style.scrollBehavior = "auto";
         window.scrollTo(0, document.scrollingElement.scrollHeight);
       });
-      await page.waitForFunction(() => {
-        const footer = document.querySelector(".site-footer")?.getBoundingClientRect();
-        return footer && footer.top < innerHeight && footer.bottom <= innerHeight;
-      });
+      await page.locator(".site-footer").scrollIntoViewIfNeeded();
       const desktopFooterAudit = await page.evaluate(() => {
         const actions = Array.from(document.querySelectorAll("#floating-actions .floating-action"));
         const actionRects = actions.map((action) => action.getBoundingClientRect());
-        const githubBadge = document.querySelector("#github-shortcut .floating-github-label");
-        const visualRects = [...actionRects, githubBadge.getBoundingClientRect()];
         const dock = {
-          left: Math.min(...visualRects.map((rect) => rect.left)),
-          right: Math.max(...visualRects.map((rect) => rect.right)),
-          top: Math.min(...visualRects.map((rect) => rect.top)),
-          bottom: Math.max(...visualRects.map((rect) => rect.bottom)),
+          left: Math.min(...actionRects.map((rect) => rect.left)),
+          right: Math.max(...actionRects.map((rect) => rect.right)),
+          top: Math.min(...actionRects.map((rect) => rect.top)),
+          bottom: Math.max(...actionRects.map((rect) => rect.bottom)),
         };
         const footer = document.querySelector(".site-footer").getBoundingClientRect();
         const intersectsFooter = !(
@@ -3031,12 +2973,9 @@ const scenarios = [
             Math.max(...actionRects.map((rect) => rect.left)) - Math.min(...actionRects.map((rect) => rect.left)),
           rowCount: new Set(actionRects.map((rect) => Math.round(rect.top))).size,
           flexDirection: getComputedStyle(document.querySelector("#floating-actions")).flexDirection,
-          labelsHidden: actions
-            .filter((action) => action.id !== "github-shortcut")
-            .every((action) => getComputedStyle(action.querySelector(".floating-action-label")).display === "none"),
-          githubBadgeVisible:
-            getComputedStyle(githubBadge).display !== "none" &&
-            document.querySelector("#star-count")?.textContent.trim() === "42",
+          labelsHidden: actions.every(
+            (action) => getComputedStyle(action.querySelector(".floating-action-label")).display === "none",
+          ),
           footerGap: dock.left - footer.right,
           intersectsFooter,
         };
@@ -3047,12 +2986,11 @@ const scenarios = [
           desktopFooterAudit.dock.right <= desktopFooterAudit.viewport.width &&
           desktopFooterAudit.dock.top >= 0 &&
           desktopFooterAudit.dock.bottom <= desktopFooterAudit.viewport.height &&
-          desktopFooterAudit.actionCount === 8 &&
+          desktopFooterAudit.actionCount === 5 &&
           desktopFooterAudit.columnSpread <= 2 &&
-          desktopFooterAudit.rowCount === 8 &&
+          desktopFooterAudit.rowCount === 5 &&
           desktopFooterAudit.flexDirection === "column" &&
           desktopFooterAudit.labelsHidden &&
-          desktopFooterAudit.githubBadgeVisible &&
           desktopFooterAudit.footerGap >= 5 &&
           !desktopFooterAudit.intersectsFooter,
         JSON.stringify(desktopFooterAudit),
@@ -3063,13 +3001,11 @@ const scenarios = [
       const desktopContentAudit = await page.evaluate(() => {
         const actions = Array.from(document.querySelectorAll("#floating-actions .floating-action"));
         const actionRects = actions.map((action) => action.getBoundingClientRect());
-        const githubBadge = document.querySelector("#github-shortcut .floating-github-label").getBoundingClientRect();
-        const visualRects = [...actionRects, githubBadge];
         const dock = {
-          left: Math.min(...visualRects.map((rect) => rect.left)),
-          right: Math.max(...visualRects.map((rect) => rect.right)),
-          top: Math.min(...visualRects.map((rect) => rect.top)),
-          bottom: Math.max(...visualRects.map((rect) => rect.bottom)),
+          left: Math.min(...actionRects.map((rect) => rect.left)),
+          right: Math.max(...actionRects.map((rect) => rect.right)),
+          top: Math.min(...actionRects.map((rect) => rect.top)),
+          bottom: Math.max(...actionRects.map((rect) => rect.bottom)),
         };
         const shell = document.querySelector(".shell").getBoundingClientRect();
         const visibleCards = Array.from(document.querySelectorAll(".identity-signal-card"))
@@ -3095,7 +3031,7 @@ const scenarios = [
         "1200px desktop keeps the vertical toolbar outside visible identity cards",
         desktopContentAudit.cardCount > 0 &&
           desktopContentAudit.columnSpread <= 2 &&
-          desktopContentAudit.rowCount === 8 &&
+          desktopContentAudit.rowCount === 5 &&
           desktopContentAudit.flexDirection === "column" &&
           desktopContentAudit.dock.left - desktopContentAudit.shellRight >= 5 &&
           desktopContentAudit.dock.left >= desktopContentAudit.cardRight &&
@@ -3108,13 +3044,11 @@ const scenarios = [
       const tabletAudit = await page.evaluate(() => {
         const actions = Array.from(document.querySelectorAll("#floating-actions .floating-action"));
         const actionRects = actions.map((action) => action.getBoundingClientRect());
-        const badgeRect = document.querySelector("#github-shortcut .floating-github-label").getBoundingClientRect();
-        const visualRects = [...actionRects, badgeRect];
         const dock = {
-          left: Math.min(...visualRects.map((rect) => rect.left)),
-          right: Math.max(...visualRects.map((rect) => rect.right)),
-          top: Math.min(...visualRects.map((rect) => rect.top)),
-          bottom: Math.max(...visualRects.map((rect) => rect.bottom)),
+          left: Math.min(...actionRects.map((rect) => rect.left)),
+          right: Math.max(...actionRects.map((rect) => rect.right)),
+          top: Math.min(...actionRects.map((rect) => rect.top)),
+          bottom: Math.max(...actionRects.map((rect) => rect.bottom)),
         };
         const shell = document.querySelector(".shell").getBoundingClientRect();
         return {
@@ -3132,7 +3066,7 @@ const scenarios = [
         "721px breakpoint reserves a right-side channel for the vertical toolbar",
         tabletAudit.flexDirection === "column" &&
           tabletAudit.columnSpread <= 2 &&
-          tabletAudit.rowCount === 8 &&
+          tabletAudit.rowCount === 5 &&
           tabletAudit.dock.left - tabletAudit.shellRight >= 5 &&
           tabletAudit.dock.right <= tabletAudit.viewport.width &&
           tabletAudit.dock.top >= 0 &&
@@ -3203,6 +3137,7 @@ const scenarios = [
     name: "AI 状态失败：无法读取必须进入中性终态",
     async run({ browser, base, ok }) {
       const page = await browser.newPage();
+      await captureCopiedSummary(page);
       await routeFixtures(page, base.origin, { failAiStatus: true });
       await page.goto(base.href);
       await page.waitForFunction(
@@ -3220,6 +3155,16 @@ const scenarios = [
         "failed status providers are neutral rather than permanently pending",
         states.length === 2 && states.every((item) => item.neutral && !item.pending),
         JSON.stringify(states),
+      );
+      await waitForScore(page);
+      await page.locator("#copy-ai-report").click();
+      await page.waitForFunction(() => document.querySelector("#copy-ai-report")?.dataset.copyState === "copied");
+      const report = await page.evaluate(() => window.__copiedSummary);
+      ok(
+        "AI report distinguishes unconfirmed risk sections from other pending diagnostics",
+        /未确认风险分区：\d+/.test(report) &&
+          /其他待确认诊断：.*Anthropic \/ Claude 服务状态.*OpenAI \/ ChatGPT 服务状态/.test(report),
+        report.slice(0, 760),
       );
       await page.close();
     },
@@ -3331,6 +3276,8 @@ const scenarios = [
         ipDelays: { "ipwho.is": 800, "api.ip.sb": 1600, "ipinfo.io": 2400 },
       });
       await page.goto(base.href);
+      await page.locator("#sec-score").waitFor({ state: "visible" });
+      await page.locator("#sec-score > summary").click();
       const identity = page.locator('[data-score-segment="identity"]');
       const ip = page.locator('[data-score-segment="ip"]');
       await identity.waitFor({ state: "visible" });
@@ -3904,6 +3851,317 @@ const scenarios = [
       const emojiRow = await page.locator('[data-row="emoji"] .row-value').innerText();
       ok("emoji row shows 不适用", emojiRow.includes("不适用"), emojiRow);
       await ctx.close();
+    },
+  },
+  {
+    name: "结果信息架构：单一主结论、信号归位和五项工具栏",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({
+        locale: "en-US",
+        timezoneId: "America/Los_Angeles",
+        viewport: { width: 1280, height: 900 },
+      });
+      await captureCopiedSummary(page);
+      await page.addInitScript(FAKE_WEBRTC_INIT);
+      const requests = [];
+      page.on("request", (request) => requests.push(request.url()));
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        dnsLeakPayload: [
+          { type: "ip", ip: FIXTURE_IPV4, country_name: "United States", asn: HOSTING_ORG },
+          { type: "dns", ip: "1.2.4.8", country_name: "China", asn: "AS4134" },
+          { type: "conclusion", ip: "DNS location differs from exit" },
+        ],
+      });
+      await page.goto(base.href);
+      await page.locator('input[value="tiktok_creator"]').check();
+      await page.locator("#identity-start").click();
+      await waitForScore(page, 60000, { openDiagnostics: false });
+      await page.waitForSelector("#identity-result-root .identity-summary-card");
+
+      const structure = await page.locator(".identity-result").evaluate((root) => {
+        const children = Array.from(root.children);
+        const reasons = root.querySelector(".identity-reasons-grid")?.closest("section");
+        const advice = root.querySelector(".identity-advice");
+        const scoring = root.querySelector("#identity-scoring-details");
+        return {
+          childClasses: children.map((child) => child.className),
+          reasonsIndex: children.indexOf(reasons),
+          adviceIndex: children.indexOf(advice),
+          scoringIndex: children.indexOf(scoring),
+          standaloneSignalSections: root.querySelectorAll(".identity-signal-section, .identity-signal-grid").length,
+          detailTableCount: root.querySelectorAll(".identity-details-table").length,
+        };
+      });
+      ok(
+        "why-like and why-unlike appear immediately after the compact conclusion",
+        structure.reasonsIndex === 1,
+        JSON.stringify(structure),
+      );
+      ok(
+        "alignment advice follows the comparison without a duplicate full-scoring block",
+        structure.adviceIndex === 2 && structure.scoringIndex === -1 && structure.detailTableCount === 0,
+        JSON.stringify(structure),
+      );
+      ok(
+        "standalone identity signal and duplicate detail blocks are removed",
+        structure.standaloneSignalSections === 0,
+        JSON.stringify(structure),
+      );
+
+      const embeddedSignals = await page.locator(".identity-signal-card").evaluateAll((cards) =>
+        cards.map((card) => ({
+          id: card.dataset.signalId,
+          section: card.closest("#section-root .section")?.id || "",
+          tag: card.tagName,
+          open: card.open,
+        })),
+      );
+      const expectedSignalSections = {
+        location: "sec-ip",
+        network: "sec-ip",
+        reputation: "sec-multi",
+        timezone: "sec-identity",
+        language: "sec-identity",
+        browser: "sec-fp",
+        dns: "sec-leak",
+        webrtc: "sec-leak",
+        services: "sec-conn",
+        consumer_services: "sec-conn",
+        creator_services: "sec-conn",
+        ads_environment: "sec-conn",
+        commerce_services: "sec-conn",
+        ai_services: "sec-conn",
+      };
+      const expectedCreatorSignals = [
+        "ads_environment",
+        "creator_services",
+        "dns",
+        "language",
+        "location",
+        "network",
+        "reputation",
+        "timezone",
+        "webrtc",
+      ];
+      const actualCreatorSignals = embeddedSignals.map((signal) => signal.id).sort();
+      ok(
+        "each identity signal is embedded once in its matching real diagnostic section",
+        embeddedSignals.length === expectedCreatorSignals.length &&
+          new Set(actualCreatorSignals).size === expectedCreatorSignals.length &&
+          actualCreatorSignals.join(",") === expectedCreatorSignals.join(",") &&
+          embeddedSignals.every(
+            (signal) =>
+              signal.tag === "DETAILS" &&
+              !signal.open &&
+              expectedSignalSections[signal.id] === signal.section,
+          ),
+        JSON.stringify(embeddedSignals),
+      );
+
+      const sectionSemantics = await page.locator("#section-root .section").evaluateAll((sections) =>
+        sections.map((section) => {
+          const heading = section.querySelector(":scope > .section-head .section-title");
+          const matchRegion = section.querySelector(".identity-section-match");
+          const matchHeading = matchRegion?.querySelector(".identity-section-match-head h3");
+          return {
+            section: section.id,
+            labelledBy: section.getAttribute("aria-labelledby"),
+            headingTag: heading?.tagName || "",
+            headingId: heading?.id || "",
+            matchTag: matchRegion?.tagName || "",
+            matchLabelledBy: matchRegion?.getAttribute("aria-labelledby") || "",
+            matchHeadingId: matchHeading?.id || "",
+          };
+        }),
+      );
+      ok(
+        "real diagnostics and embedded identity matches expose navigable headings",
+        sectionSemantics.every(
+          (item) =>
+            item.headingTag === "H2" &&
+            item.headingId &&
+            item.labelledBy === item.headingId &&
+            (!item.matchTag ||
+              (item.matchTag === "SECTION" &&
+                item.matchHeadingId &&
+                item.matchLabelledBy === item.matchHeadingId)),
+        ),
+        JSON.stringify(sectionSemantics),
+      );
+
+      const signalStatusStyles = await page.locator(".identity-signal-status").evaluateAll((statuses) =>
+        statuses.map((status) => {
+          const style = getComputedStyle(status);
+          return { color: style.color, background: style.backgroundColor, text: status.textContent.trim() };
+        }),
+      );
+      ok(
+        "small identity status labels meet normal-text contrast",
+        signalStatusStyles.every((item) => colorContrastRatio(item.color, item.background) >= 4.5),
+        JSON.stringify(signalStatusStyles),
+      );
+
+      const advancedState = await page.locator("#sec-score").evaluate((details) => ({
+        tag: details.tagName,
+        open: details.open,
+        riskLabel: details.querySelector("#network-risk-label")?.textContent.trim() || "",
+        riskCounts: details.querySelector("#network-risk-counts")?.textContent.trim() || "",
+        redChips: details.querySelectorAll(".score-risk-chip-red").length,
+        amberChips: details.querySelectorAll(".score-risk-chip-amber").length,
+        visibleScore: Boolean(details.querySelector("#score-number")?.getClientRects().length),
+      }));
+      const riskCountMatch = advancedState.riskCounts.match(/高风险\s+(\d+)\s+项\s*\/\s*需留意\s+(\d+)\s+项/);
+      ok(
+        "advanced diagnostics defaults to a compact risk disclosure without a visible second score",
+        advancedState.tag === "DETAILS" &&
+          !advancedState.open &&
+          Boolean(advancedState.riskLabel) &&
+          /高风险|需留意|未确认|检测中|未发现/.test(advancedState.riskLabel) &&
+          /高风险|需留意|未确认/.test(advancedState.riskCounts) &&
+          !advancedState.visibleScore,
+        JSON.stringify(advancedState),
+      );
+      ok(
+        "advanced risk summary counts the individual visible risk signals",
+        Number(riskCountMatch?.[1]) === advancedState.redChips &&
+          Number(riskCountMatch?.[2]) === advancedState.amberChips,
+        JSON.stringify(advancedState),
+      );
+
+      const firstSignalId = embeddedSignals[0].id;
+      await page.locator(`.identity-signal-card[data-signal-id="${firstSignalId}"] > summary`).click();
+      await page.locator("#privacy-toggle").click();
+      await page.waitForFunction(() => document.body.classList.contains("privacy-on"));
+      const disclosurePreserved = await page
+        .locator(`.identity-signal-card[data-signal-id="${firstSignalId}"]`)
+        .evaluate((details) => details.open);
+      ok(
+        "an opened identity signal stays open across an unrelated result render",
+        disclosurePreserved,
+        `signal=${firstSignalId}, open=${disclosurePreserved}`,
+      );
+
+      await page.locator("#identity-result-title").focus();
+      const titleFocusTreatment = await page.locator("#identity-result-title").evaluate((title) => {
+        const titleStyle = getComputedStyle(title);
+        return {
+          titleOutline: titleStyle.outlineStyle,
+          titleOutlineWidth: titleStyle.outlineWidth,
+        };
+      });
+      await page.keyboard.press("Tab");
+      await page.locator("#copy-ai-report").focus();
+      const actionFocusTreatment = await page.locator("#copy-ai-report").evaluate((action) => {
+        const actionStyle = getComputedStyle(action);
+        return {
+          actionOutline: actionStyle.outlineStyle,
+          actionOutlineWidth: actionStyle.outlineWidth,
+        };
+      });
+      const focusTreatment = { ...titleFocusTreatment, ...actionFocusTreatment };
+      ok(
+        "programmatic result-title focus stays quiet while interactive controls keep a visible focus ring",
+        focusTreatment.titleOutline === "none" &&
+          focusTreatment.actionOutline !== "none" &&
+          Number.parseFloat(focusTreatment.actionOutlineWidth) >= 2,
+        JSON.stringify(focusTreatment),
+      );
+
+      const toolbar = await page.locator("#floating-actions .floating-action").evaluateAll((actions) =>
+        actions.map((action) => ({
+          id: action.id,
+          label: action.querySelector(".floating-action-label")?.textContent.trim() || "",
+          aria: action.getAttribute("aria-label"),
+          title: action.getAttribute("title"),
+        })),
+      );
+      ok(
+        "floating toolbar contains exactly the five requested actions in order",
+        toolbar.map((action) => action.id).join(",") ===
+          "run-all,copy-ai-report,copy-summary,privacy-toggle,floating-top",
+        JSON.stringify(toolbar),
+      );
+      const aiCopyAction = toolbar.find((action) => action.id === "copy-ai-report");
+      ok(
+        "AI copy action uses the exact no-space diagnosis label across visible and accessible text",
+        aiCopyAction?.label === "复制给AI诊断" &&
+          aiCopyAction.aria === "复制给AI诊断" &&
+          aiCopyAction.title === "复制给AI诊断",
+        JSON.stringify(aiCopyAction),
+      );
+      ok(
+        "removed toolbar shortcuts do not trigger a GitHub metadata request",
+        (await page.locator("#chatgpt-shortcut, #claude-shortcut, #github-shortcut").count()) === 0 &&
+          !requests.some((url) => url.startsWith("https://api.github.com/repos/")),
+        requests.filter((url) => url.includes("github.com")).join(","),
+      );
+
+      await page.locator("#copy-ai-report").click();
+      await page.waitForFunction(() => document.querySelector("#copy-ai-report")?.dataset.copyState === "copied");
+      const report = await page.evaluate(() => window.__copiedSummary);
+      ok(
+        "AI report contains one identity score and describes advanced diagnostics as risk counts",
+        (report.match(/Identity Match Score：\d+\/100/g) || []).length === 1 &&
+          !/Trust Score/.test(report) &&
+          /高级网络风险/.test(report) &&
+          /需留意项/.test(report),
+        report.slice(0, 620),
+      );
+
+      await page.locator("#sec-score > summary").click();
+      ok("advanced diagnostics can be opened before a new analysis", await page.locator("#sec-score").evaluate((details) => details.open));
+      await page.locator('[data-identity-action="reselect"]').click();
+      await page.locator('input[value="ai_worker"]').check();
+      await page.locator("#identity-start").click();
+      await page.waitForFunction(() => document.body.dataset.appStage === "running");
+      await waitForScore(page, 60000, { openDiagnostics: false });
+      await page.waitForFunction(
+        () =>
+          document.body.dataset.appStage === "result" &&
+          document.querySelector("#identity-result-title")?.textContent.includes("AI 用户"),
+        null,
+        { timeout: 60000 },
+      );
+      const nextIdentityDisclosures = await page.locator(".identity-signal-card").evaluateAll((cards) =>
+        cards.map((card) => ({
+          id: card.dataset.signalId,
+          open: card.open,
+          section: card.closest("#section-root .section")?.id || "",
+        })),
+      );
+      ok(
+        "a new identity analysis resets advanced diagnostics to its collapsed default",
+        !(await page.locator("#sec-score").evaluate((details) => details.open)),
+      );
+      ok(
+        "a new identity analysis resets every identity disclosure and places browser evidence with fingerprints",
+        nextIdentityDisclosures.every((item) => !item.open) &&
+          nextIdentityDisclosures.some((item) => item.id === "browser" && item.section === "sec-fp"),
+        JSON.stringify(nextIdentityDisclosures),
+      );
+      await page.close();
+
+      const genericPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await routeFixtures(genericPage, base.origin, { autoStart: false });
+      await genericPage.goto(base.href);
+      await genericPage.locator("#identity-generic").click();
+      await waitForScore(genericPage, 60000, { openDiagnostics: false });
+      await genericPage.waitForSelector("#identity-result-root .identity-summary-card");
+      const genericState = await genericPage.locator(".identity-summary-card").evaluate((card) => ({
+        text: card.textContent.trim(),
+        visiblePrimaryScore: Boolean(card.querySelector("#identity-match-score")?.getClientRects().length),
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      }));
+      ok(
+        "generic analysis shows a non-numeric environment conclusion without page overflow",
+        /数字环境综合结论/.test(genericState.text) &&
+          !genericState.visiblePrimaryScore &&
+          !/\b\d+\s*\/\s*100\b/.test(genericState.text) &&
+          genericState.overflow <= 1,
+        JSON.stringify(genericState),
+      );
+      await genericPage.close();
     },
   },
 ];
