@@ -476,13 +476,21 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   function renderStatusLabel(value) {
     var label = String(value == null ? "" : value);
     var pattern = /(?:✅|❗|‼️|⁉️)/gu;
+    var iconClassBySymbol = {
+      "✅": "match",
+      "❗": "partial",
+      "‼️": "mismatch",
+      "⁉️": "unknown"
+    };
     var html = "";
     var lastIndex = 0;
     var match;
     while ((match = pattern.exec(label))) {
       html += escapeHtml(label.slice(lastIndex, match.index));
       html +=
-        '<span class="semantic-status-icon" aria-hidden="true">' +
+        '<span class="semantic-status-icon semantic-status-icon-' +
+        iconClassBySymbol[match[0]] +
+        '" aria-hidden="true">' +
         escapeHtml(match[0]) +
         "</span>";
       lastIndex = pattern.lastIndex;

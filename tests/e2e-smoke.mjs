@@ -2215,6 +2215,21 @@ const scenarios = [
             statusA11y: Array.from(summary?.querySelectorAll(".identity-signal-status") || [], (status) => ({
               label: status.getAttribute("aria-label") || "",
               hiddenIcons: status.querySelectorAll('.semantic-status-icon[aria-hidden="true"]').length,
+              presentation: (() => {
+                const icon = status.querySelector('.semantic-status-icon[aria-hidden="true"]');
+                const iconStyle = icon ? getComputedStyle(icon) : null;
+                const statusStyle = getComputedStyle(status);
+                const iconRect = icon?.getBoundingClientRect();
+                return {
+                  status: status.closest(".identity-signal-card")?.dataset.status || "",
+                  statusDisplay: statusStyle.display,
+                  alignItems: statusStyle.alignItems,
+                  width: iconRect?.width || 0,
+                  height: iconRect?.height || 0,
+                  borderRadius: iconStyle?.borderRadius || "",
+                  background: iconStyle?.backgroundColor || "",
+                };
+              })(),
             })),
             referenceOnly: Array.from(summary?.querySelectorAll(".identity-signal-card") || [], (card) =>
               card.dataset.referenceOnly,
@@ -2268,6 +2283,22 @@ const scenarios = [
         statusA11y.length === 4 &&
           statusA11y.every((status) => status.hiddenIcons === 1 && !/[✅❗‼⁉]/u.test(status.label)),
         JSON.stringify(statusA11y),
+      );
+      ok(
+        "identity status symbols use a tone-matched circular base",
+        statusA11y.length === 4 &&
+          statusA11y.every(({ presentation }) => {
+            const radius = parseFloat(presentation.borderRadius);
+            return (
+              ["flex", "inline-flex"].includes(presentation.statusDisplay) &&
+              presentation.alignItems === "center" &&
+              presentation.width >= 17 &&
+              Math.abs(presentation.width - presentation.height) <= 0.5 &&
+              radius >= presentation.width / 2 &&
+              presentation.background !== "rgba(0, 0, 0, 0)"
+            );
+          }),
+        JSON.stringify(statusA11y.map((status) => status.presentation)),
       );
       await page.setViewportSize({ width: 300, height: 700 });
       const footerAudit = await page.locator(".site-footer").evaluate((footer) => {
@@ -4933,6 +4964,17 @@ const scenarios = [
             status: card.dataset.status,
             label: card.querySelector(".identity-signal-status")?.textContent.trim() || "",
             referenceOnly: card.dataset.referenceOnly,
+            icon: (() => {
+              const node = card.querySelector(".semantic-status-icon");
+              const style = node ? getComputedStyle(node) : null;
+              const rect = node?.getBoundingClientRect();
+              return {
+                width: rect?.width || 0,
+                height: rect?.height || 0,
+                borderRadius: style?.borderRadius || "",
+                background: style?.backgroundColor || "",
+              };
+            })(),
           }));
         await page.close();
         return { score, node, insights, pathText, reference };
@@ -4997,6 +5039,29 @@ const scenarios = [
         `${baseline.score} -> ${twoAi.score}; ${JSON.stringify(twoAi)}`,
       );
       ok("AI risk wording describes a service-side label", twoAi.insights.includes("AI 服务侧国家标签命中当前口径"), twoAi.insights);
+
+      const tonePresentations = [
+        benchmarkOnly.reference,
+        oneAi.reference,
+        oneOfTwoSamples.reference,
+        twoAi.reference,
+      ];
+      ok(
+        "all four identity status tones use distinct circular icon bases",
+        tonePresentations.map((reference) => reference.status).join(",") ===
+          "match,partial,unknown,mismatch" &&
+          tonePresentations.every((reference) => {
+            const radius = parseFloat(reference.icon.borderRadius);
+            return (
+              reference.icon.width >= 17 &&
+              Math.abs(reference.icon.width - reference.icon.height) <= 0.5 &&
+              radius >= reference.icon.width / 2 &&
+              reference.icon.background !== "rgba(0, 0, 0, 0)"
+            );
+          }) &&
+          new Set(tonePresentations.map((reference) => reference.icon.background)).size === 4,
+        JSON.stringify(tonePresentations),
+      );
 
       const unstable = await measure({
         "chatgpt.com": [
@@ -5903,13 +5968,59 @@ const scenarios = [
       const signalStatusStyles = await page.locator(".identity-signal-status").evaluateAll((statuses) =>
         statuses.map((status) => {
           const style = getComputedStyle(status);
-          return { color: style.color, background: style.backgroundColor, text: status.textContent.trim() };
+          const icon = status.querySelector('.semantic-status-icon[aria-hidden="true"]');
+          const iconStyle = icon ? getComputedStyle(icon) : null;
+          const iconRect = icon?.getBoundingClientRect();
+          return {
+            status: status.closest(".identity-signal-card")?.dataset.status || "",
+            color: style.color,
+            background: style.backgroundColor,
+            text: status.textContent.trim(),
+            ariaLabel: status.getAttribute("aria-label") || "",
+            icon: {
+              symbol: icon?.textContent || "",
+              ariaHidden: icon?.getAttribute("aria-hidden") || "",
+              width: iconRect?.width || 0,
+              height: iconRect?.height || 0,
+              flexShrink: iconStyle?.flexShrink || "",
+              borderRadius: iconStyle?.borderRadius || "",
+              background: iconStyle?.backgroundColor || "",
+            },
+          };
         }),
       );
       ok(
         "small identity status labels meet normal-text contrast",
         signalStatusStyles.every((item) => colorContrastRatio(item.color, item.background) >= 4.5),
         JSON.stringify(signalStatusStyles),
+      );
+      const signalStatusTones = ["match", "partial", "mismatch", "unknown"];
+      const symbolByTone = { match: "✅", partial: "❗", mismatch: "‼️", unknown: "⁉️" };
+      const iconBackgroundsByTone = Object.fromEntries(
+        signalStatusTones.map((tone) => [
+          tone,
+          Array.from(new Set(signalStatusStyles.filter((item) => item.status === tone).map((item) => item.icon.background))),
+        ]),
+      );
+      ok(
+        "match, partial, mismatch and unknown identity badges use distinct circular icon bases",
+        signalStatusTones.every((tone) => iconBackgroundsByTone[tone].length === 1) &&
+          new Set(Object.values(iconBackgroundsByTone).flat()).size === 4 &&
+          signalStatusStyles.every((item) => {
+            const radius = parseFloat(item.icon.borderRadius);
+            return (
+              item.icon.width >= 17 &&
+              Math.abs(item.icon.width - item.icon.height) <= 0.5 &&
+              item.icon.flexShrink === "0" &&
+              radius >= item.icon.width / 2 &&
+              item.icon.background !== "rgba(0, 0, 0, 0)" &&
+              item.icon.background !== item.background &&
+              item.icon.symbol === symbolByTone[item.status] &&
+              item.icon.ariaHidden === "true" &&
+              !/[✅❗‼⁉]/u.test(item.ariaLabel)
+            );
+          }),
+        JSON.stringify({ iconBackgroundsByTone, signalStatusStyles }),
       );
 
       const advancedState = await page.locator("#sec-score").evaluate((section) => ({
@@ -5921,6 +6032,28 @@ const scenarios = [
         redChips: section.querySelectorAll(".score-risk-chip-red").length,
         amberChips: section.querySelectorAll(".score-risk-chip-amber").length,
         unconfirmedChips: section.querySelectorAll(".score-risk-chip-unconfirmed").length,
+        riskChipMarks: Array.from(section.querySelectorAll(".score-risk-chip .score-risk-mark"), (mark) => {
+          const style = getComputedStyle(mark);
+          const rect = mark.getBoundingClientRect();
+          const chip = mark.closest(".score-risk-chip");
+          const chipRect = chip?.getBoundingClientRect();
+          return {
+            tone: chip?.classList.contains("score-risk-chip-red")
+              ? "red"
+              : chip?.classList.contains("score-risk-chip-unconfirmed")
+                ? "unconfirmed"
+                : "amber",
+            width: rect.width,
+            height: rect.height,
+            borderRadius: style.borderRadius,
+            background: style.backgroundColor,
+            insideChip: Boolean(chipRect) &&
+              rect.left >= chipRect.left - 0.5 &&
+              rect.right <= chipRect.right + 0.5 &&
+              rect.top >= chipRect.top - 0.5 &&
+              rect.bottom <= chipRect.bottom + 0.5,
+          };
+        }),
         visibleScore: Boolean(section.querySelector("#score-number")?.getClientRects().length),
         visibleNodes: Array.from(section.querySelectorAll("#score-nodes .score-node")).filter(
           (node) => node.getClientRects().length,
@@ -5964,7 +6097,21 @@ const scenarios = [
         "advanced risk summary counts the individual visible risk signals",
         Number(riskCountMatch?.[1]) === advancedState.redChips &&
           Number(riskCountMatch?.[2]) === advancedState.amberChips &&
-          Number(riskCountMatch?.[3]) === advancedState.unconfirmedChips,
+          Number(riskCountMatch?.[3]) === advancedState.unconfirmedChips &&
+          advancedState.riskChipMarks.length ===
+            advancedState.redChips + advancedState.amberChips + advancedState.unconfirmedChips &&
+          advancedState.riskChipMarks.every((mark) => {
+            const radius = parseFloat(mark.borderRadius);
+            return (
+              mark.width > 0 &&
+              Math.abs(mark.width - mark.height) <= 0.5 &&
+              radius >= mark.width / 2 &&
+              mark.background !== "rgba(0, 0, 0, 0)" &&
+              mark.insideChip
+            );
+          }) &&
+          new Set(advancedState.riskChipMarks.map((mark) => mark.background)).size >=
+            [advancedState.redChips, advancedState.amberChips, advancedState.unconfirmedChips].filter(Boolean).length,
         JSON.stringify(advancedState),
       );
 
@@ -6051,6 +6198,7 @@ const scenarios = [
             const ring = document.querySelector("#score-ring");
             const reselect = document.querySelector("#network-risk-reselect");
             const nodes = Array.from(document.querySelectorAll("#score-nodes .score-node"));
+            const identityStatuses = Array.from(document.querySelectorAll(".identity-signal-status"));
             const heroRect = hero.getBoundingClientRect();
             const contentRect = content.getBoundingClientRect();
             const ringRect = ring.getBoundingClientRect();
@@ -6064,6 +6212,25 @@ const scenarios = [
               ringVisible: ringRect.width > 0 && ringRect.height > 0,
               nodeCount: nodes.length,
               nodesInsideViewport: nodeRects.every((rect) => rect.left >= -1 && rect.right <= innerWidth + 1),
+              identityStatusCount: identityStatuses.length,
+              identityStatusesFit: identityStatuses.every((status) => {
+                const summary = status.closest("summary");
+                const icon = status.querySelector(".semantic-status-icon");
+                const statusRect = status.getBoundingClientRect();
+                const summaryRect = summary?.getBoundingClientRect();
+                const iconRect = icon?.getBoundingClientRect();
+                return (
+                  summary &&
+                  summaryRect &&
+                  iconRect &&
+                  summary.scrollWidth <= summary.clientWidth + 1 &&
+                  statusRect.left >= summaryRect.left - 1 &&
+                  statusRect.right <= summaryRect.right + 1 &&
+                  statusRect.left >= -1 &&
+                  statusRect.right <= innerWidth + 1 &&
+                  iconRect.width >= 17
+                );
+              }),
               reselectTouchTarget: [reselectRect.width, reselectRect.height],
             };
           }),
@@ -6079,6 +6246,8 @@ const scenarios = [
             audit.ringVisible &&
             audit.nodeCount === 6 &&
             audit.nodesInsideViewport &&
+            audit.identityStatusCount > 0 &&
+            audit.identityStatusesFit &&
             (audit.width > 390 ||
               (audit.reselectTouchTarget[0] >= 44 && audit.reselectTouchTarget[1] >= 44)),
         ),

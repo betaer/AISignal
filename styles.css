@@ -1039,13 +1039,51 @@ body[data-app-stage="result"] .analysis-progress {
 }
 
 .identity-signal-card-header .identity-signal-status {
+  display: inline-flex;
   flex: none;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
   margin-top: 0;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface-soft);
   font: 650 11px/1.2 var(--sans);
-  padding: 4px 8px;
+  padding: 4px 8px 4px 5px;
+  white-space: nowrap;
+}
+
+.identity-signal-status .semantic-status-icon {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+  background: var(--pending-soft);
+  font-size: 10px;
+  line-height: 1;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(89, 89, 82, 0.08);
+}
+
+.identity-signal-status .semantic-status-icon-match {
+  background: #dceee1;
+  box-shadow: inset 0 0 0 1px rgba(47, 109, 66, 0.12);
+}
+
+.identity-signal-status .semantic-status-icon-partial {
+  background: #f5e3c1;
+  box-shadow: inset 0 0 0 1px rgba(123, 76, 10, 0.11);
+}
+
+.identity-signal-status .semantic-status-icon-mismatch {
+  background: #f5d9d6;
+  box-shadow: inset 0 0 0 1px rgba(150, 56, 47, 0.11);
+}
+
+.identity-signal-status .semantic-status-icon-unknown {
+  background: #deded8;
+  box-shadow: inset 0 0 0 1px rgba(89, 89, 82, 0.1);
 }
 
 .identity-signal-card[data-status="match"] .identity-signal-status {
