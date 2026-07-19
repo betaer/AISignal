@@ -1593,14 +1593,47 @@ const scenarios = [
       await page.locator("#identity-generic").click();
       await waitForScore(page);
 
-      const aiIcon = await page.locator("#copy-ai-report .floating-ai-logo").evaluate((node) => ({
-        src: node.getAttribute("src"),
-        width: node.naturalWidth,
-        height: node.naturalHeight,
-      }));
+      const aiIcon = await page.locator("#copy-ai-report .floating-ai-logo").evaluate((node) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 128;
+        canvas.height = 128;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(node, 0, 0, canvas.width, canvas.height);
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const sample = (x, y) => {
+          const offset = (y * canvas.width + x) * 4;
+          return Array.from(pixels.slice(offset, offset + 4));
+        };
+        let visiblePixels = 0;
+        let blackPixels = 0;
+        let coralPixels = 0;
+        for (let offset = 0; offset < pixels.length; offset += 4) {
+          const [red, green, blue, alpha] = pixels.slice(offset, offset + 4);
+          if (alpha > 0) visiblePixels += 1;
+          if (alpha > 200 && red < 48 && green < 48 && blue < 48) blackPixels += 1;
+          if (alpha > 200 && red > 190 && green > 70 && green < 155 && blue > 45 && blue < 125) {
+            coralPixels += 1;
+          }
+        }
+        return {
+          src: node.getAttribute("src"),
+          width: node.naturalWidth,
+          height: node.naturalHeight,
+          cornerAlpha: [sample(0, 0)[3], sample(127, 0)[3], sample(0, 127)[3], sample(127, 127)[3]],
+          visiblePixels,
+          blackPixels,
+          coralPixels,
+        };
+      });
       ok(
-        "share-to-AI uses the supplied merged SVG asset",
-        aiIcon.src === "../assets/merged_ai_logo.svg?v=20260718-4" && aiIcon.width > 0 && aiIcon.height > 0,
+        "share-to-AI uses the transparent merged SVG asset",
+        aiIcon.src === "../assets/merged_ai_logo.svg?v=20260720-1" &&
+          aiIcon.width === 128 &&
+          aiIcon.height === 128 &&
+          aiIcon.cornerAlpha.every((alpha) => alpha === 0) &&
+          aiIcon.visiblePixels > 1_000 &&
+          aiIcon.blackPixels > 500 &&
+          aiIcon.coralPixels > 900,
         JSON.stringify(aiIcon),
       );
 

@@ -149,7 +149,7 @@ test("serves the isolated identity demo and its browser assets", async () => {
   assert.match(html, /href="\.\.\/favicon\.svg/);
   assert.match(html, /styles-new\.min\.css/);
   assert.match(html, /app-new\.min\.js/);
-  assert.match(html, /src="\.\.\/assets\/merged_ai_logo\.svg\?v=20260718-4"/);
+  assert.match(html, /src="\.\.\/assets\/merged_ai_logo\.svg\?v=20260720-1"/);
   assert.doesNotMatch(html, /(?:src|href)="favicon\.svg/);
 
   for (const [pathname, contentType] of [
@@ -165,6 +165,23 @@ test("serves the isolated identity demo and its browser assets", async () => {
     assert.equal(response.status, 200, pathname);
     assert.match(response.headers.get("content-type") || "", contentType, pathname);
   }
+});
+
+test("keeps the merged AI diagnostic icon as a transparent vector on every page", async () => {
+  const icon = await readFile(resolve(projectRoot, "assets", "merged_ai_logo.svg"), "utf8");
+  assert.match(icon, /^<svg\b/);
+  assert.match(icon, /<path\b/);
+  assert.doesNotMatch(icon, /<(?:image|rect|pattern)\b/i);
+  assert.doesNotMatch(icon, /data:image|mix-blend-mode|filter=/i);
+
+  const [rootHtml, datedHtml, demoHtml] = await Promise.all([
+    readFile(resolve(projectRoot, "index.html"), "utf8"),
+    readFile(resolve(projectRoot, "index-20260719.html"), "utf8"),
+    readFile(resolve(projectRoot, "demo", "index-new.html"), "utf8"),
+  ]);
+  assert.match(rootHtml, /src="assets\/merged_ai_logo\.svg\?v=20260720-1"/);
+  assert.match(datedHtml, /src="assets\/merged_ai_logo\.svg\?v=20260720-1"/);
+  assert.match(demoHtml, /src="\.\.\/assets\/merged_ai_logo\.svg\?v=20260720-1"/);
 });
 
 test("returns the branded 404 page with an actual 404 status", async () => {
