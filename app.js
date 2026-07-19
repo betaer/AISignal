@@ -210,9 +210,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         {
           label: "Wikipedia.org",
           host: "wikipedia.org",
-          probeUrl: "https://www.wikipedia.org/static/favicon/wikipedia.ico",
-          softFail: true,
-          failStatus: "未确认"
+          probeUrl: "https://www.wikipedia.org/static/favicon/wikipedia.ico"
         }
       ]
     },
@@ -223,37 +221,29 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         {
           label: "Baidu.com",
           host: "baidu.com",
-          probeUrl: "https://www.baidu.com/favicon.ico",
-          softFail: true,
-          failStatus: "未确认"
+          probeUrl: "https://www.baidu.com/favicon.ico"
         },
         {
           label: "QQ.com",
           host: "qq.com",
-          probeUrl: "https://www.qq.com/favicon.ico",
-          softFail: true,
-          failStatus: "未确认"
+          probeUrl: "https://www.qq.com/favicon.ico"
         },
         {
           label: "TaoBao.com",
           host: "taobao.com",
-          probeUrl: "https://www.taobao.com/favicon.ico",
-          softFail: true,
-          failStatus: "未确认"
+          probeUrl: "https://www.taobao.com/favicon.ico"
         },
         {
           label: "BiliBili.com",
           host: "bilibili.com",
-          probeUrl: "https://www.bilibili.com/favicon.ico",
-          softFail: true,
-          failStatus: "未确认"
+          probeUrl: "https://www.bilibili.com/favicon.ico"
         }
       ]
     }
   ];
 
-  // 画像专属服务只做浏览器侧可达性观察。失败可能来自 CORS、浏览器策略或网络限制，
-  // 因此统一返回“未确认”，不把它解释成区域解锁、账号状态或平台可用性结论。
+  // 画像专属服务只做浏览器侧连通性观察：收到任何 HTTP 响应即为“可达”，
+  // 主探针与备用探针均未取得可用响应信号时为“本次未连通”。该结果不代表账号、解锁或平台健康状态。
   var IDENTITY_SERVICE_CATALOG = {
     google: {
       serviceId: "google",
@@ -368,7 +358,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       serviceId: "claude",
       label: "Claude.ai",
       host: "claude.ai",
-      probeUrl: "https://claude.ai/favicon.ico"
+      probeUrl: "https://claude.ai/cdn-cgi/trace",
+      mode: "cors"
     },
     gemini: {
       serviceId: "gemini",
@@ -386,7 +377,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       serviceId: "perplexity",
       label: "Perplexity.ai",
       host: "perplexity.ai",
-      probeUrl: "https://www.perplexity.ai/favicon.ico"
+      probeUrl: "https://www.perplexity.ai/cdn-cgi/trace",
+      mode: "cors"
     },
     github: {
       serviceId: "github",
@@ -413,11 +405,6 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   ];
   // 三个站点 worker 为主探针切换官方备用端点预留一个网络槽，浏览器层峰值仍不超过四路。
   var CONN_WORKER_LIMIT = 3;
-
-  Object.keys(IDENTITY_SERVICE_CATALOG).forEach(function (serviceId) {
-    IDENTITY_SERVICE_CATALOG[serviceId].softFail = true;
-    IDENTITY_SERVICE_CATALOG[serviceId].failStatus = "未确认";
-  });
 
   var aiTargets = [
     { name: "Cloudflare 基准", host: "cloudflare.com", scored: false },
@@ -1418,7 +1405,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           return;
         }
         var current = resultMap[site.serviceId];
-        var rank = { ok: 5, limited: 4, bad: 3, unknown: 2, pending: 1 };
+        var rank = { ok: 6, limited: 5, bad: 4, unreachable: 3, unknown: 2, pending: 1 };
         if (!current || (rank[site.code] || 0) > (rank[current.code] || 0)) {
           resultMap[site.serviceId] = site;
         }
@@ -1452,7 +1439,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       return item.code === "bad";
     });
     var unresolved = results.filter(function (item) {
-      return item.code === "pending" || item.code === "unknown";
+      return item.code === "pending" || item.code === "unknown" || item.code === "unreachable";
     });
     var evidence = results
       .map(function (item) {
@@ -1460,9 +1447,9 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           return item.label + "：浏览器可达";
         }
         if (item.code === "limited") {
-          return item.label + "：浏览器可达（HTTP 状态不可读）";
+          return item.label + "：浏览器可达";
         }
-        return item.label + "：" + (item.status || "未确认");
+        return item.label + "：" + (item.status || "本次未连通");
       })
       .join("；");
     if (reached.length === results.length) {
@@ -1474,12 +1461,15 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       );
     }
     if (reached.length) {
-      return identitySignal("partial", 0.68, evidence + "；部分项目仍未确认", "目标服务可达性探测");
+      return identitySignal("partial", 0.68, evidence + "；部分项目本次未连通", "目标服务可达性探测");
     }
     if (explicitBad.length && !unresolved.length) {
       return identitySignal("mismatch", 0.62, evidence + "；仍需区分网络限制与服务状态", "目标服务可达性探测");
     }
-    return unknownIdentitySignal(evidence + "；当前浏览器未取得可判断结果，不能据此认定服务不可用", "目标服务可达性探测");
+    return unknownIdentitySignal(
+      evidence + "；本轮探针未取得可用响应信号，可能受超时、浏览器跨域策略、本机扩展或网络策略影响，不能据此认定平台宕机",
+      "目标服务可达性探测"
+    );
   }
 
   function buildIdentitySignals(profile) {
@@ -3509,10 +3499,41 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     });
   }
 
-  function runConn() {
+  function announceConnCompletion() {
+    var status = $("#conn-result-status");
+    if (!status) {
+      return;
+    }
+    var resultByHost = {};
+    (state.conn.groups || []).forEach(function (group) {
+      (group.sites || []).forEach(function (site) {
+        if (site.host) {
+          resultByHost[site.host] = site.code;
+        }
+      });
+    });
+    var resultCodes = Object.keys(resultByHost).map(function (host) {
+      return resultByHost[host];
+    });
+    var reachableCount = resultCodes.filter(function (code) {
+      return code === "ok" || code === "limited";
+    }).length;
+    var disconnectedCount = resultCodes.filter(function (code) {
+      return code !== "ok" && code !== "limited";
+    }).length;
+    status.textContent =
+      "网络连通检测完成：可达 " + reachableCount + " 项，本次未连通 " + disconnectedCount + " 项。";
+  }
+
+  function runConn(options) {
     // 同一轮连通检测只允许一个受限 worker 池。连续点击不会叠加第三方请求。
     if (activeConnProbeToken) {
       return false;
+    }
+    var shouldAnnounceCompletion = Boolean(options && options.announceCompletion);
+    var resultStatus = $("#conn-result-status");
+    if (shouldAnnounceCompletion && resultStatus) {
+      resultStatus.textContent = "";
     }
     var runId = state.runId;
     var token = startModuleRun("conn");
@@ -3583,12 +3604,18 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       activeConnProbeToken = 0;
       state.conn.running = false;
       render();
+      if (shouldAnnounceCompletion) {
+        announceConnCompletion();
+      }
       return true;
     }
     function releaseConnWorkerPool() {
       if (activeConnProbeToken === token) {
         activeConnProbeToken = 0;
         render();
+        if (shouldAnnounceCompletion) {
+          announceConnCompletion();
+        }
       }
     }
     Promise.all(workers).then(releaseConnWorkerPool, releaseConnWorkerPool);
@@ -3612,18 +3639,6 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         done = true;
         window.clearTimeout(timer);
         var elapsed = Math.max(1, Math.round(performance.now() - startedAt));
-        if (result && result.httpError) {
-          resolve({
-            code: "bad",
-            status:
-              "HTTP " +
-              result.httpStatus +
-              " · 服务响应异常 · " +
-              elapsed +
-              "ms"
-          });
-          return;
-        }
         if (result && result.connected) {
           resolve({
             code: result.confirmed ? "ok" : "limited",
@@ -3632,8 +3647,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           return;
         }
         resolve({
-          code: site.softFail ? "unknown" : "bad",
-          status: site.failStatus || "不可达"
+          code: "unreachable",
+          status: "本次未连通"
         });
       }
       function finish(result) {
@@ -3650,7 +3665,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         }
         if (!fallbackStarted && site.fallbackUrl && result && result.transportFailed) {
           // 只有网络、CORS 或超时导致无法取得响应时才尝试备用端点。
-          // 已经可读取的 HTTP 错误必须原样保留，不能被静态资源成功掩盖。
+          // 已经可读取的 HTTP 响应证明路径已建立，不再启动静态资源备用探针。
           // fallback 必须用新的 controller 和独立超时：
           // 复用已 abort 的 signal 会让 fallback 立即失败。
           fallbackStarted = true;
@@ -3703,7 +3718,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         signal: signal
       })
         .then(function (response) {
-          // CORS 响应只有 2xx 才能确认可达；opaque 响应只能确认请求链路已建立，不能读取 HTTP 状态。
+          // 收到任何 HTTP 响应都能证明请求链路已建立。2xx 可确认端点正常；
+          // 可读非 2xx 或 opaque 响应仍属“可达”，但不把它解释为业务功能正常。
           if (requestMode !== "cors") {
             return { connected: true, confirmed: false, readable: false, transportFailed: false };
           }
@@ -3720,7 +3736,6 @@ import { analyzeIdentity } from "./identityAnalysis.js";
             connected: true,
             confirmed: false,
             readable: true,
-            httpError: true,
             httpStatus: response.status,
             transportFailed: false
           };
@@ -5569,10 +5584,14 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       aiConnGroup.sites.forEach(function (site) {
         if (site.code === "limited") {
           limitations.push(
-            site.host + " 连通性：" + site.status + "；浏览器收到跨站响应，但无法读取 HTTP 详情，不代表服务受限或业务功能可用。"
+            site.host + " 连通性：" + site.status + "；浏览器已收到响应，只能确认访问路径已建立，不代表业务功能正常。"
+          );
+        } else if (site.code === "unreachable") {
+          limitations.push(
+            site.host + " 连通性：" + site.status + "；本轮探针未取得可用响应信号，可能受浏览器跨域策略、本机扩展或网络策略影响，不等同于平台不可用。"
           );
         } else if (site.code !== "ok") {
-          limitations.push(site.host + " 连通性：" + site.status + "；当前浏览器未取得可判断结果，不能据此认定服务不可用。");
+          limitations.push(site.host + " 连通性：" + site.status + "；本轮检测尚未完成，不能据此认定平台不可用。");
         }
       });
     }
@@ -6006,6 +6025,11 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       (state.identityAnalysis && state.identityAnalysis.profile && state.identityAnalysis.profile.id === "generic"
         ? "环境一致性"
         : "目标匹配");
+    var statusLabel =
+      detail.statusLabel ||
+      (detail.status === "unknown" && IDENTITY_SECTION_BY_SIGNAL[detail.id] === "sec-conn"
+        ? "⁉️ 证据不足"
+        : identityStatusLabel(detail.status));
     return (
       '<details class="identity-signal-card" data-status="' +
       escapeHtml(detail.status) +
@@ -6020,9 +6044,9 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       "</span><strong>" +
       escapeHtml(detail.label) +
       '</strong></span><span class="identity-signal-card-meta"><span class="identity-signal-status" aria-label="' +
-      escapeHtml(accessibleStatusText(detail.statusLabel || identityStatusLabel(detail.status))) +
+      escapeHtml(accessibleStatusText(statusLabel)) +
       '">' +
-      renderStatusLabel(detail.statusLabel || identityStatusLabel(detail.status)) +
+      renderStatusLabel(statusLabel) +
       '</span><span class="identity-signal-chevron" aria-hidden="true">›</span></span></summary><div class="identity-signal-card-body"><p class="identity-signal-evidence sensitive">' +
       escapeHtml(detail.evidence || detail.text || "证据尚未返回") +
       "</p></div></details>"
@@ -7102,8 +7126,13 @@ import { analyzeIdentity } from "./identityAnalysis.js";
             '</div><div class="conn-grid">' +
             group.sites
               .map(function (site) {
-                var tone = site.code === "ok" || site.code === "limited" ? "green" : site.code === "bad" ? "red" : "pending";
-                var displayStatus = site.status === "未确认" ? "⁉️ 未确认" : site.status;
+                var tone =
+                  site.code === "ok" || site.code === "limited"
+                    ? "green"
+                    : site.code === "bad" || site.code === "unreachable"
+                      ? "red"
+                      : "pending";
+                var displayStatus = site.status;
                 return (
                   '<div class="conn-card" data-conn-host="' +
                   escapeHtml(site.host) +
@@ -7131,7 +7160,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           );
         })
         .join("") +
-      '<p class="conn-note">浏览器探针只发起只读 GET 请求，不读取业务内容、不带 referrer。只要浏览器收到目标端点或其官方备用端点的响应，统一显示为“可达”；部分跨站端点不会向浏览器公开 HTTP 状态，因此“可达”只说明请求路径已建立，不代表业务页面、登录、地区解锁、账号或支付功能可用。“未确认”表示主探针与备用探针都没有取得响应，常见原因包括超时、DNS / TLS 失败、扩展拦截或网络策略，建议重测。“服务响应异常”表示端点返回了浏览器可读取的非 2xx。Nms 是本轮从发起请求到收到响应头的耗时，包含 DNS、TLS、服务端与浏览器调度，不是 Ping，也不是完整下载耗时。大陆探针只依据全球站点 · 常被墙与中国站点的连接结果，其他目标服务仅用于环境分析。</p></div></div></section>'
+      '<p class="conn-note">浏览器探针只发起只读 GET 请求，不读取业务内容、不带 referrer。检测完成后，下方逐站连通卡片只有“可达”或“本次未连通”两种终态：只要浏览器收到目标端点或其官方备用端点的任何 HTTP 响应，统一显示为“可达”。部分跨站端点不会向浏览器公开 HTTP 状态，因此“可达”只说明请求路径已建立，不代表业务页面、登录、地区解锁、账号或支付功能可用。“本次未连通”表示本轮主探针与备用探针均未取得可用响应信号，可能来自超时、DNS / TLS 失败、浏览器跨域策略、扩展拦截或网络策略，不等同于平台宕机，建议重测。Nms 是本轮从发起请求到收到响应头的耗时，包含 DNS、TLS、服务端与浏览器调度，不是 Ping，也不是完整下载耗时。大陆探针只依据全球站点 · 常被墙与中国站点的连接结果，其他目标服务仅用于环境分析。</p></div></div></section>'
     );
   }
 
@@ -7520,7 +7549,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         if (action === "run-webrtc") runWebRTC();
         if (action === "run-dns-std") runDNS("std");
         if (action === "run-dns-deep") runDNS("deep");
-        if (action === "run-conn") runConn();
+        if (action === "run-conn") runConn({ announceCompletion: true });
         if (action === "run-multi") runMulti(($("#multi-ip") || {}).value || "");
         if (action === "run-aipath") runAipath();
         if (action === "run-aistatus") runAiStatus();

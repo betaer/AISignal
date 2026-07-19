@@ -262,9 +262,9 @@ const REPORT_WEBRTC_INIT = `
  * opts.countryIsTargetOnly: country.is 自查请求失败，只响应显式地址回填请求。
  * opts.ipwhoTargetOnly: ipwho.is 自查请求失败，只响应显式地址回填请求。
  * opts.*TargetResponse: 为显式地址请求伪造响应，用于验证目标 IP 完整性。
- * opts.blockedServiceHosts: 让指定服务探针失败，用于验证待确认身份信号。
+ * opts.blockedServiceHosts: 让指定服务探针失败，用于验证“本次未连通”与身份证据边界。
  * opts.blockedServicePaths: 让指定 host + pathname 探针失败，用于验证同域备用探针。
- * opts.errorServiceHosts: 让指定 CORS 服务探针返回 HTTP 503，用于验证状态码处理。
+ * opts.errorServiceHosts: 让指定 CORS 服务探针返回 HTTP 503，用于验证“收到 HTTP 响应即为可达”。
  * opts.serviceDelays: { [hostname]: ms } 为服务探针增加确定性响应延迟，用于验证浏览器响应耗时。
  */
 async function routeFixtures(target, baseOrigin, opts = {}) {
@@ -422,9 +422,14 @@ async function routeFixtures(target, baseOrigin, opts = {}) {
       if (trace?.fail) {
         return route.fulfill({ status: 503, contentType: "text/plain", body: "unavailable" }).catch(() => {});
       }
-      return text(
-        `fl=1\nip=${trace.ip || FIXTURE_IPV4}\nloc=${trace.loc || "US"}\ncolo=${trace.colo || "SJC"}\nwarp=${trace.warp || "off"}\n`,
-      );
+      return route
+        .fulfill({
+          status: 200,
+          contentType: "text/plain",
+          headers: { "access-control-allow-origin": "*" },
+          body: `fl=1\nip=${trace.ip || FIXTURE_IPV4}\nloc=${trace.loc || "US"}\ncolo=${trace.colo || "SJC"}\nwarp=${trace.warp || "off"}\n`,
+        })
+        .catch(() => {});
     }
     if (url.pathname.includes("/api/v2/status.json") && opts.failAiStatus) {
       return route.fulfill({ status: 503, contentType: "application/json", body: "{}" }).catch(() => {});
@@ -2419,6 +2424,17 @@ const scenarios = [
         "unknown identity status keeps normal-text contrast on its pending background",
         colorContrastRatio(unknownStatusStyle.color, unknownStatusStyle.background) >= 4.5,
         JSON.stringify(unknownStatusStyle),
+      );
+      const aiServiceIdentityStatus = await page
+        .locator('.identity-signal-card[data-signal-id="ai_services"] .identity-signal-status')
+        .textContent();
+      ok(
+        "service identity summary distinguishes insufficient matching evidence from per-site connectivity results",
+        aiServiceIdentityStatus?.trim() === "⁉️ 证据不足" &&
+          !(await page.locator("#sec-conn .conn-card-status").allTextContents()).some((status) =>
+            status.includes("未确认"),
+          ),
+        aiServiceIdentityStatus?.trim() || "missing",
       );
 
       await page.goto(new URL("demo/index-new.html", base).href);
@@ -4657,13 +4673,18 @@ const scenarios = [
         return {
           groups,
           note: section.querySelector(".conn-note")?.textContent.trim() || "",
+          statusStyles: Array.from(section.querySelectorAll(".conn-card-status")).map((status) => ({
+            text: status.textContent.trim(),
+            color: getComputedStyle(status).color,
+            background: getComputedStyle(status.closest(".conn-card")).backgroundColor,
+          })),
         };
       });
       const labels = (title) => (audit.groups[title] || []).map((item) => item.label);
       const terminalStatuses = Object.values(audit.groups)
         .flat()
         .every((item) =>
-          /^可达 · \d+ms$|^HTTP \d+ · 服务响应异常 · \d+ms$|^⁉️ 未确认$/.test(item.status),
+          /^可达 · \d+ms$|^本次未连通$/.test(item.status),
         );
 
       ok(
@@ -4700,15 +4721,39 @@ const scenarios = [
         JSON.stringify({ global: labels("全球站点 · 常被墙"), china: labels("中国站点") }),
       );
       ok(
-        "an unreadable standalone global probe remains unconfirmed rather than being called unreachable",
-        (audit.groups["全球站点 · 常被墙"] || []).find((item) => item.label === "Wikipedia.org")?.status === "⁉️ 未确认",
+        "a failed browser probe uses the binary per-run not-connected state without claiming a platform outage",
+        (audit.groups["全球站点 · 常被墙"] || []).find((item) => item.label === "Wikipedia.org")?.status === "本次未连通",
         JSON.stringify(audit.groups["全球站点 · 常被墙"] || []),
       );
-      ok("all connectivity cards reach a terminal measured or unconfirmed state", terminalStatuses, JSON.stringify(audit.groups));
+      ok(
+        "all connectivity cards finish in one of the two visible states and never expose an unconfirmed state",
+        terminalStatuses && !Object.values(audit.groups).flat().some((item) => item.status.includes("未确认")),
+        JSON.stringify(audit.groups),
+      );
+      ok(
+        "small green reachable text uses the high-contrast status ink token and meets WCAG AA",
+        audit.statusStyles.filter((style) => style.text.startsWith("可达")).length > 0 &&
+          audit.statusStyles
+            .filter((style) => style.text.startsWith("可达"))
+            .every(
+              (style) =>
+                style.color === "rgb(47, 109, 66)" &&
+                colorContrastRatio(style.color, style.background) >= 4.5,
+            ),
+        JSON.stringify(
+          audit.statusStyles.filter((style) => style.text.startsWith("可达")).map((style) => ({
+            text: style.text,
+            color: style.color,
+            ratio: Number(colorContrastRatio(style.color, style.background).toFixed(3)),
+          })),
+        ),
+      );
       ok(
         "connectivity note defines browser request timing and its limits",
         /从发起请求到收到响应头的耗时/.test(audit.note) &&
-          /不代表.*(?:区域|地区)解锁.*账号.*支付功能/.test(audit.note),
+          /不代表.*(?:区域|地区)解锁.*账号.*支付功能/.test(audit.note) &&
+          audit.note.includes("“本次未连通”") &&
+          audit.note.includes("不等同于平台宕机"),
         audit.note,
       );
 
@@ -4722,12 +4767,18 @@ const scenarios = [
             return `${url.hostname}${url.pathname}`;
           }),
       );
-      const uncachedServiceRequests = requests
+      const configuredServiceRequests = requests
         .map((requestUrl) => {
           const url = new URL(requestUrl);
           return { endpoint: `${url.hostname}${url.pathname}`, cacheBust: url.searchParams.has("_") };
         })
         .filter((item) => configuredProbeEndpoints.has(item.endpoint));
+      const unexpectedCacheBusts = configuredServiceRequests.filter(
+        (item) => item.cacheBust && !item.endpoint.endsWith("/cdn-cgi/trace"),
+      );
+      const traceConnectivityRequests = ["claude.ai/cdn-cgi/trace", "www.perplexity.ai/cdn-cgi/trace"].filter(
+        (endpoint) => configuredServiceRequests.some((item) => item.endpoint === endpoint && !item.cacheBust),
+      );
       const expectedProbeEndpoints = [
         "www.google.com/generate_204",
         "www.youtube.com/generate_204",
@@ -4740,6 +4791,8 @@ const scenarios = [
         "www.amazon.com/favicon.ico",
         "www.paypal.com/favicon.ico",
         "dashboard.stripe.com/healthcheck",
+        "claude.ai/cdn-cgi/trace",
+        "www.perplexity.ai/cdn-cgi/trace",
         "registry.npmjs.org/tiny-tarball/latest",
       ];
       const missingProbeEndpoints = expectedProbeEndpoints.filter((endpoint) => !configuredProbeEndpoints.has(endpoint));
@@ -4754,10 +4807,25 @@ const scenarios = [
         npmPrimary?.resultCode === "ok" && /^可达 · \d+ms$/.test(npmPrimary.status),
         JSON.stringify(npmPrimary || {}),
       );
+      const aiServices = audit.groups["AI 服务"] || [];
+      const claude = aiServices.find((item) => item.label === "Claude.ai");
+      const perplexity = aiServices.find((item) => item.label === "Perplexity.ai");
       ok(
-        "service probes rely on no-store instead of random cache-busting query parameters",
-        uncachedServiceRequests.length > 0 && uncachedServiceRequests.every((item) => !item.cacheBust),
-        JSON.stringify(uncachedServiceRequests),
+        "Claude and Perplexity use CORS-readable same-product diagnostic endpoints and resolve as reachable",
+        claude?.probeUrl === "https://claude.ai/cdn-cgi/trace" &&
+          claude?.resultCode === "ok" &&
+          /^可达 · \d+ms$/.test(claude.status) &&
+          perplexity?.probeUrl === "https://www.perplexity.ai/cdn-cgi/trace" &&
+          perplexity?.resultCode === "ok" &&
+          /^可达 · \d+ms$/.test(perplexity.status),
+        JSON.stringify({ claude, perplexity }),
+      );
+      ok(
+        "connectivity probes do not add cache-busting parameters even when the AI-path module separately samples trace URLs",
+        configuredServiceRequests.length > 0 &&
+          unexpectedCacheBusts.length === 0 &&
+          traceConnectivityRequests.length === 2,
+        JSON.stringify({ configuredServiceRequests, unexpectedCacheBusts, traceConnectivityRequests }),
       );
       ok(
         "removed PyPI probe is neither rendered nor requested",
@@ -4831,7 +4899,7 @@ const scenarios = [
     },
   },
   {
-    name: "服务探针语义：延迟成功与未确认保持可区分",
+    name: "服务探针语义：延迟成功与本次未连通保持可区分",
     async run({ browser, base, ok }) {
       const page = await browser.newPage();
       await routeFixtures(page, base.origin, {
@@ -4872,22 +4940,22 @@ const scenarios = [
         JSON.stringify(statuses),
       );
       ok(
-        "blocked no-cors service remains unconfirmed rather than being called unreachable",
-        statuses["PayPal.com"] === "⁉️ 未确认",
+        "blocked service is reported with the binary per-run not-connected state",
+        statuses["PayPal.com"] === "本次未连通",
         JSON.stringify(statuses),
       );
       ok(
-        "unconfirmed connectivity symbol stays visual-only in the accessibility tree",
-        paypalStatusMarkup.hiddenIcons === 1 &&
-          paypalStatusMarkup.text === "⁉️ 未确认" &&
-          paypalStatusA11y.includes("未确认") &&
+        "not-connected status stays plain and unambiguous in the accessibility tree",
+        paypalStatusMarkup.hiddenIcons === 0 &&
+          paypalStatusMarkup.text === "本次未连通" &&
+          paypalStatusA11y.includes("本次未连通") &&
           !/[✅❗‼⁉]/u.test(paypalStatusA11y),
         JSON.stringify({ paypalStatusMarkup, paypalStatusA11y }),
       );
       ok(
-        "mixed commerce reachability becomes a partial identity signal with explicit evidence",
+        "mixed commerce reachability becomes a partial identity signal with explicit per-run evidence",
         commerceSignal.status === "partial" && /Stripe\.com：浏览器可达/.test(commerceSignal.evidence) &&
-          /PayPal\.com：未确认/.test(commerceSignal.evidence),
+          /PayPal\.com：本次未连通/.test(commerceSignal.evidence),
         JSON.stringify(commerceSignal),
       );
       await page.close();
@@ -5087,6 +5155,21 @@ const scenarios = [
         disabled: button.disabled,
         text: button.textContent.trim(),
       }));
+      const completionAnnouncement = await page.evaluate(() => {
+        const states = new Map();
+        document.querySelectorAll("#sec-conn .conn-card").forEach((card) => {
+          const host = card.dataset.connHost;
+          const code = card.dataset.resultCode;
+          if (host) states.set(host, code);
+        });
+        const codes = Array.from(states.values());
+        return {
+          exists: Boolean(document.querySelector("#conn-result-status")),
+          text: document.querySelector("#conn-result-status")?.textContent.trim() || "",
+          reachable: codes.filter((code) => code === "ok" || code === "limited").length,
+          disconnected: codes.filter((code) => code !== "ok" && code !== "limited").length,
+        };
+      });
       ok(
         "rapid repeated activation starts one probe batch and never exceeds four active connectivity requests",
         initiallyEnabled &&
@@ -5101,6 +5184,13 @@ const scenarios = [
         "connectivity retest is enabled again after the single batch reaches a terminal state",
         buttonState.disabled === false && buttonState.text.includes("重测"),
         JSON.stringify(buttonState),
+      );
+      ok(
+        "connectivity module retest announces one concise binary completion summary",
+        completionAnnouncement.exists &&
+          completionAnnouncement.text ===
+            `网络连通检测完成：可达 ${completionAnnouncement.reachable} 项，本次未连通 ${completionAnnouncement.disconnected} 项。`,
+        JSON.stringify(completionAnnouncement),
       );
       await page.close();
     },
@@ -5848,7 +5938,7 @@ const scenarios = [
     },
   },
   {
-    name: "服务探针：CORS HTTP 503 必须保留明确故障且不得被备用端点掩盖",
+    name: "服务探针：CORS HTTP 503 证明路径可达且不启动备用端点",
     async run({ browser, base, ok }) {
       const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
       const serviceRequests = [];
@@ -5872,11 +5962,13 @@ const scenarios = [
         return card && !card.textContent.includes("检测中");
       });
       const cardText = await stripeCard.innerText();
+      const resultCode = await stripeCard.getAttribute("data-result-code");
       ok(
-        "a readable HTTP failure remains an explicit service response error",
-        /HTTP 503 · 服务响应异常 · \d+ms/.test(cardText) &&
-          !/浏览器受限|状态受限|可达/.test(cardText),
-        cardText,
+        "any readable HTTP response proves browser-path reachability without creating a third visible state",
+        /可达 · \d+ms/.test(cardText) &&
+          !/未确认|本次未连通|服务响应异常/.test(cardText) &&
+          resultCode === "limited",
+        JSON.stringify({ cardText, resultCode }),
       );
       ok(
         "a readable primary HTTP failure does not fall back to a static resource",
