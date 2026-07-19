@@ -97,7 +97,7 @@ async function networkRiskSnapshot(page) {
   return page.evaluate(() => {
     const countsText = document.querySelector("#network-risk-counts")?.textContent.trim() || "";
     const match = countsText.match(
-      /高风险\s+(\d+)\s+项\s*\/\s*需留意\s+(\d+)\s+项\s*\/\s*未确认\s+(\d+)\s+项/,
+      /高风险\s+(\d+)\s+项\s*\/\s*(?:❗\s*)?需留意\s+(\d+)\s+项\s*\/\s*(?:⁉️?\s*)?未确认\s+(\d+)\s+项/,
     );
     const chips = Array.from(document.querySelectorAll("#score-insights .score-risk-chip")).map((chip) => ({
       severity:
@@ -263,6 +263,7 @@ const REPORT_WEBRTC_INIT = `
  * opts.ipwhoTargetOnly: ipwho.is 自查请求失败，只响应显式地址回填请求。
  * opts.*TargetResponse: 为显式地址请求伪造响应，用于验证目标 IP 完整性。
  * opts.blockedServiceHosts: 让指定服务探针失败，用于验证待确认身份信号。
+ * opts.blockedServicePaths: 让指定 host + pathname 探针失败，用于验证同域备用探针。
  * opts.errorServiceHosts: 让指定 CORS 服务探针返回 HTTP 503，用于验证状态码处理。
  * opts.serviceDelays: { [hostname]: ms } 为服务探针增加确定性响应延迟，用于验证浏览器响应耗时。
  */
@@ -290,6 +291,9 @@ async function routeFixtures(target, baseOrigin, opts = {}) {
     }
     const host = url.hostname;
     if ((opts.blockedServiceHosts || []).includes(host)) {
+      return route.abort().catch(() => {});
+    }
+    if ((opts.blockedServicePaths || []).includes(`${host}${url.pathname}`)) {
       return route.abort().catch(() => {});
     }
     if ((opts.errorServiceHosts || []).includes(host)) {
@@ -495,6 +499,7 @@ async function scoreNodeSnapshot(page) {
         label: node.querySelector(".score-node-label")?.textContent.trim(),
         expanded: node.getAttribute("aria-expanded"),
         controls: node.getAttribute("aria-controls"),
+        ariaLabel: node.getAttribute("aria-label") || "",
         iconHref: href,
         hasIcon:
           Boolean(href && document.querySelector(href)) &&
@@ -609,7 +614,9 @@ const scenarios = [
         "embedded signal counts no longer claim that visible evidence must be clicked",
         !underlineAudit.hasRedundantPrompt &&
           underlineAudit.signalLabels.length > 0 &&
-          underlineAudit.signalLabels.every((text) => /^\d+ 项信号$/.test(text)),
+          underlineAudit.signalLabels.every((text) =>
+            /^\d+ 项(?:信号(?: · 不计入身份匹配分)?|参考 · 不计入身份匹配分|状态 · 不计入身份匹配分)$/.test(text),
+          ),
         JSON.stringify(underlineAudit.signalLabels),
       );
 
@@ -2130,7 +2137,9 @@ const scenarios = [
         signalLayout.cardCount > 0 && signalLayout.allEmbedded && signalLayout.sectionCount >= 4,
         JSON.stringify(signalLayout),
       );
-      const pendingSignalCount = await page.locator('.identity-signal-card[data-status="unknown"]').count();
+      const pendingSignalCount = await page
+        .locator('.identity-signal-card:not([data-reference-only="true"])[data-status="unknown"]')
+        .count();
       const pendingPanelCount = await page.locator(".identity-reasons-panel.is-pending").count();
       ok(
         "pending evidence panel is rendered only when the selected profile has unresolved service evidence",
@@ -2180,6 +2189,93 @@ const scenarios = [
         ["Cursor.com", "GitHub.com", "registry.npmjs.org"].every((label) => connectivityText.includes(label)) &&
           !connectivityText.includes("PyPI.org"),
         connectivityText.slice(0, 400),
+      );
+      const sectionReferences = await page.locator("#section-root").evaluate((root) => {
+        const readSection = (id) => {
+          const section = root.querySelector(`#${id}`);
+          const summary = section?.querySelector(":scope > .panel > .identity-section-match");
+          return {
+            heading: summary?.querySelector(".identity-section-match-head h3")?.textContent.replace(/\s+/g, " ").trim() || "",
+            meta: summary?.querySelector(".identity-section-match-head > span")?.textContent.replace(/\s+/g, " ").trim() || "",
+            signalIds: Array.from(summary?.querySelectorAll(".identity-signal-card") || [], (card) => card.dataset.signalId),
+            statuses: Array.from(summary?.querySelectorAll(".identity-signal-status") || [], (status) => status.textContent.trim()),
+            statusA11y: Array.from(summary?.querySelectorAll(".identity-signal-status") || [], (status) => ({
+              label: status.getAttribute("aria-label") || "",
+              hiddenIcons: status.querySelectorAll('.semantic-status-icon[aria-hidden="true"]').length,
+            })),
+            referenceOnly: Array.from(summary?.querySelectorAll(".identity-signal-card") || [], (card) =>
+              card.dataset.referenceOnly,
+            ),
+          };
+        };
+        return {
+          identity: readSection("sec-identity"),
+          aiPath: readSection("sec-aipath"),
+          aiStatus: readSection("sec-aistatus"),
+        };
+      });
+      ok(
+        "AI profile keeps language and timezone visible as non-scoring identity-signal references",
+        sectionReferences.identity.heading.includes("身份信号参考") &&
+          sectionReferences.identity.meta.includes("不计入身份匹配分") &&
+          sectionReferences.identity.signalIds.join(",") === "context_language,context_timezone" &&
+          sectionReferences.identity.referenceOnly.every((value) => value === "true"),
+        JSON.stringify(sectionReferences.identity),
+      );
+      ok(
+        "AI path and platform status expose explicit non-scoring summaries instead of unexplained gaps",
+        sectionReferences.aiPath.heading.includes("服务出口参考") &&
+          sectionReferences.aiPath.meta.includes("不计入身份匹配分") &&
+          sectionReferences.aiPath.signalIds.join(",") === "ai_path_reference" &&
+          sectionReferences.aiPath.referenceOnly.every((value) => value === "true") &&
+          sectionReferences.aiStatus.heading.includes("平台运行参考") &&
+          sectionReferences.aiStatus.meta.includes("不计入身份匹配分") &&
+          sectionReferences.aiStatus.signalIds.join(",") === "ai_status_reference" &&
+          sectionReferences.aiStatus.referenceOnly.every((value) => value === "true"),
+        JSON.stringify(sectionReferences),
+      );
+      const summaryStatuses = [
+        ...sectionReferences.identity.statuses,
+        ...sectionReferences.aiPath.statuses,
+        ...sectionReferences.aiStatus.statuses,
+      ];
+      ok(
+        "summary badges use the requested semantic symbols",
+        summaryStatuses.length === 4 &&
+          summaryStatuses.every((status) => /^(?:✅ 匹配|❗ 部分匹配|‼️ 存在差异|✅ 正常|❗ 需留意|❗ 部分异常|‼️ 高风险|‼️ 服务异常|⁉️ 未确认)$/.test(status)),
+        summaryStatuses.join(" / "),
+      );
+      const statusA11y = [
+        ...sectionReferences.identity.statusA11y,
+        ...sectionReferences.aiPath.statusA11y,
+        ...sectionReferences.aiStatus.statusA11y,
+      ];
+      ok(
+        "visible status symbols stay decorative while assistive names remain plain text",
+        statusA11y.length === 4 &&
+          statusA11y.every((status) => status.hiddenIcons === 1 && !/[✅❗‼⁉]/u.test(status.label)),
+        JSON.stringify(statusA11y),
+      );
+      await page.setViewportSize({ width: 300, height: 700 });
+      const footerAudit = await page.locator(".site-footer").evaluate((footer) => {
+        const links = Array.from(footer.querySelectorAll("a"));
+        const rects = links.map((link) => link.getBoundingClientRect());
+        return {
+          labels: links.map((link) => link.textContent.trim()),
+          rows: new Set(rects.map((rect) => Math.round(rect.top))).size,
+          overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,
+          footerScrollOverflow: footer.scrollWidth - footer.clientWidth,
+          minTouchHeight: Math.min(...rects.map((rect) => rect.height)),
+        };
+      });
+      ok(
+        "300px footer keeps all four links on one visible row without page overflow",
+        footerAudit.labels.join(",") === "AI Signal Guard,反馈问题,更新日志,源码" &&
+          footerAudit.rows === 1 &&
+          footerAudit.overflow === 0 &&
+          footerAudit.footerScrollOverflow <= 1 &&
+          footerAudit.minTouchHeight >= 44,
+        JSON.stringify(footerAudit),
       );
       await page.close();
     },
@@ -4030,6 +4126,7 @@ const scenarios = [
               label: card.querySelector(".conn-card-host")?.textContent.trim() || "",
               status: card.querySelector(".conn-card-status")?.textContent.trim() || "",
               probeUrl: card.dataset.probeUrl || "",
+              resultCode: card.dataset.resultCode || "",
             })),
           ]),
         );
@@ -4042,14 +4139,14 @@ const scenarios = [
       const terminalStatuses = Object.values(audit.groups)
         .flat()
         .every((item) =>
-          /^可达 · \d+ms$|^有响应 · \d+ms$|^官方备用资源(?:可达|有响应) · \d+ms$|^(?:官方备用资源 · )?HTTP \d+ · 服务响应异常 · \d+ms$|^未确认$/.test(item.status),
+          /^可达 · \d+ms$|^HTTP \d+ · 服务响应异常 · \d+ms$|^⁉️ 未确认$/.test(item.status),
         );
 
       ok(
-        "opaque cross-origin responses use a concise connected label without implying the service is restricted",
-        !Object.values(audit.groups).flat().some((item) => item.status.includes("状态受限")) &&
-          audit.note.includes("“有响应”表示浏览器收到了跨站响应") &&
-          audit.note.includes("不代表服务受限"),
+        "all received responses use one visible reachable state while HTTP readability remains an internal detail",
+        !Object.values(audit.groups).flat().some((item) => /状态受限|有响应/.test(item.status)) &&
+          audit.note.includes("统一显示为“可达”") &&
+          audit.note.includes("部分跨站端点不会向浏览器公开 HTTP 状态"),
         JSON.stringify(audit),
       );
 
@@ -4080,13 +4177,14 @@ const scenarios = [
       );
       ok(
         "an unreadable standalone global probe remains unconfirmed rather than being called unreachable",
-        (audit.groups["全球站点 · 常被墙"] || []).find((item) => item.label === "Wikipedia.org")?.status === "未确认",
+        (audit.groups["全球站点 · 常被墙"] || []).find((item) => item.label === "Wikipedia.org")?.status === "⁉️ 未确认",
         JSON.stringify(audit.groups["全球站点 · 常被墙"] || []),
       );
       ok("all connectivity cards reach a terminal measured or unconfirmed state", terminalStatuses, JSON.stringify(audit.groups));
       ok(
         "connectivity note defines browser request timing and its limits",
-        /从发起请求到收到响应头的耗时/.test(audit.note) && /不代表区域解锁、账号或支付功能/.test(audit.note),
+        /从发起请求到收到响应头的耗时/.test(audit.note) &&
+          /不代表.*(?:区域|地区)解锁.*账号.*支付功能/.test(audit.note),
         audit.note,
       );
 
@@ -4118,12 +4216,19 @@ const scenarios = [
         "www.amazon.com/favicon.ico",
         "www.paypal.com/favicon.ico",
         "dashboard.stripe.com/healthcheck",
+        "registry.npmjs.org/tiny-tarball/latest",
       ];
       const missingProbeEndpoints = expectedProbeEndpoints.filter((endpoint) => !configuredProbeEndpoints.has(endpoint));
       ok(
         "all requested services are configured with the audited official public probe endpoints",
         missingProbeEndpoints.length === 0,
         `missing=${missingProbeEndpoints.join(",")}; configured=${Array.from(configuredProbeEndpoints).join(",")}`,
+      );
+      const npmPrimary = (audit.groups["AI 服务"] || []).find((item) => item.label === "registry.npmjs.org");
+      ok(
+        "npm readable primary response retains its confirmed internal result code",
+        npmPrimary?.resultCode === "ok" && /^可达 · \d+ms$/.test(npmPrimary.status),
+        JSON.stringify(npmPrimary || {}),
       );
       ok(
         "service probes rely on no-store instead of random cache-busting query parameters",
@@ -4155,6 +4260,53 @@ const scenarios = [
     },
   },
   {
+    name: "npm 探针：官方健康检查包可读，主探针失败时使用同域备用端点",
+    async run({ browser, base, ok }) {
+      const page = await browser.newPage({ locale: "en-US", timezoneId: "America/Los_Angeles" });
+      const requests = [];
+      page.on("request", (request) => requests.push(request.url()));
+      await routeFixtures(page, base.origin, {
+        autoStart: false,
+        blockedServicePaths: ["registry.npmjs.org/tiny-tarball/latest"],
+      });
+      await page.goto(base.href);
+      await page.locator('input[value="ai_worker"]').check();
+      await page.locator("#identity-start").click();
+      await page.waitForFunction(
+        () => {
+          const card = document.querySelector('.conn-card[data-service-id="npm"]');
+          const status = card?.querySelector(".conn-card-status")?.textContent.trim() || "";
+          return status !== "" && status !== "检测中" && status !== "等待检测";
+        },
+        null,
+        { timeout: 20000 },
+      );
+      const npmCard = await page.locator('.conn-card[data-service-id="npm"]').evaluate((card) => ({
+        probeUrl: card.dataset.probeUrl,
+        status: card.querySelector(".conn-card-status")?.textContent.trim() || "",
+        tone: card.querySelector(".conn-card-status")?.className || "",
+        resultCode: card.dataset.resultCode || "",
+      }));
+      const npmRequests = requests
+        .filter((requestUrl) => new URL(requestUrl).hostname === "registry.npmjs.org")
+        .map((requestUrl) => new URL(requestUrl).pathname);
+      ok(
+        "npm uses the official tiny-tarball health-check package as its primary readable probe",
+        npmCard.probeUrl === "https://registry.npmjs.org/tiny-tarball/latest",
+        JSON.stringify(npmCard),
+      );
+      ok(
+        "npm primary failure falls back to ping and still presents one green reachable state",
+        /^可达 · \d+ms$/.test(npmCard.status) &&
+          npmCard.tone.includes("green") &&
+          npmCard.resultCode === "limited" &&
+          npmRequests.join(",") === "/tiny-tarball/latest,/-/ping",
+        JSON.stringify({ npmCard, npmRequests }),
+      );
+      await page.close();
+    },
+  },
+  {
     name: "服务探针语义：延迟成功与未确认保持可区分",
     async run({ browser, base, ok }) {
       const page = await browser.newPage();
@@ -4180,6 +4332,12 @@ const scenarios = [
         ),
       );
       const stripeMs = Number((statuses["Stripe.com"] || "").match(/(\d+)ms$/)?.[1] || 0);
+      const paypalStatus = merchant.locator(".conn-card", { hasText: "PayPal.com" }).locator(".conn-card-status");
+      const paypalStatusA11y = await paypalStatus.ariaSnapshot();
+      const paypalStatusMarkup = await paypalStatus.evaluate((status) => ({
+        hiddenIcons: status.querySelectorAll('.semantic-status-icon[aria-hidden="true"]').length,
+        text: status.textContent.trim(),
+      }));
       const commerceSignal = await page.locator('.identity-signal-card[data-signal-id="commerce_services"]').evaluate((card) => ({
         status: card.dataset.status,
         evidence: card.textContent.trim(),
@@ -4191,8 +4349,16 @@ const scenarios = [
       );
       ok(
         "blocked no-cors service remains unconfirmed rather than being called unreachable",
-        statuses["PayPal.com"] === "未确认",
+        statuses["PayPal.com"] === "⁉️ 未确认",
         JSON.stringify(statuses),
+      );
+      ok(
+        "unconfirmed connectivity symbol stays visual-only in the accessibility tree",
+        paypalStatusMarkup.hiddenIcons === 1 &&
+          paypalStatusMarkup.text === "⁉️ 未确认" &&
+          paypalStatusA11y.includes("未确认") &&
+          !/[✅❗‼⁉]/u.test(paypalStatusA11y),
+        JSON.stringify({ paypalStatusMarkup, paypalStatusA11y }),
       );
       ok(
         "mixed commerce reachability becomes a partial identity signal with explicit evidence",
@@ -4339,7 +4505,10 @@ const scenarios = [
       };
       page.on("request", (request) => {
         const key = endpointKey(request.url());
-        if (!tracking || !/favicon|generate_204|healthcheck|logo-small|\/-\/ping|shopify-favicon/.test(request.url())) return;
+        if (
+          !tracking ||
+          !/favicon|generate_204|healthcheck|tiny-tarball|logo-small|\/-\/ping|shopify-favicon/.test(request.url())
+        ) return;
         activeRequests.add(request);
         requestCounts.set(key, (requestCounts.get(key) || 0) + 1);
         maxActive = Math.max(maxActive, activeRequests.size);
@@ -4436,6 +4605,20 @@ const scenarios = [
         JSON.stringify(states),
       );
       await waitForScore(page);
+      const platformReference = await page
+        .locator('.identity-signal-card[data-signal-id="ai_status_reference"]')
+        .evaluate((card) => ({
+          status: card.dataset.status,
+          label: card.querySelector(".identity-signal-status")?.textContent.trim() || "",
+          referenceOnly: card.dataset.referenceOnly,
+        }));
+      ok(
+        "failed platform providers produce an unconfirmed non-scoring reference summary",
+        platformReference.status === "unknown" &&
+          platformReference.label === "⁉️ 未确认" &&
+          platformReference.referenceOnly === "true",
+        JSON.stringify(platformReference),
+      );
       await page.locator("#copy-ai-report").click();
       await page.waitForFunction(() => document.querySelector("#copy-ai-report")?.dataset.copyState === "copied");
       const report = await page.evaluate(() => window.__copiedSummary);
@@ -4489,8 +4672,15 @@ const scenarios = [
         const node = (await scoreNodeSnapshot(page)).find((item) => item.id === "ai");
         const insights = await page.locator("#score-insights").innerText();
         const pathText = await page.locator("#sec-aipath").innerText();
+        const reference = await page
+          .locator('.identity-signal-card[data-signal-id="ai_path_reference"]')
+          .evaluate((card) => ({
+            status: card.dataset.status,
+            label: card.querySelector(".identity-signal-status")?.textContent.trim() || "",
+            referenceOnly: card.dataset.referenceOnly,
+          }));
         await page.close();
-        return { score, node, insights, pathText };
+        return { score, node, insights, pathText, reference };
       }
 
       const baseline = await measure({});
@@ -4499,7 +4689,10 @@ const scenarios = [
       });
       ok(
         "Cloudflare benchmark alone does not deduct AI score",
-        benchmarkOnly.score === baseline.score && !benchmarkOnly.insights.includes("AI 服务侧国家标签"),
+        benchmarkOnly.score === baseline.score &&
+          !benchmarkOnly.insights.includes("AI 服务侧国家标签") &&
+          benchmarkOnly.reference.status === "match" &&
+          benchmarkOnly.reference.referenceOnly === "true",
         `${baseline.score} -> ${benchmarkOnly.score}; ${benchmarkOnly.insights}`,
       );
       ok(
@@ -4511,7 +4704,14 @@ const scenarios = [
       const oneAi = await measure({
         "chatgpt.com": { ip: FIXTURE_RELAY_IPV6, loc: "CN", colo: "HKG" },
       });
-      ok("one AI target is amber and does not deduct", oneAi.score === baseline.score && oneAi.node?.status === "amber", JSON.stringify(oneAi));
+      ok(
+        "one AI target is amber and produces a non-scoring attention reference",
+        oneAi.score === baseline.score &&
+          oneAi.node?.status === "amber" &&
+          oneAi.reference.status === "partial" &&
+          oneAi.reference.label === "❗ 需留意",
+        JSON.stringify(oneAi),
+      );
 
       const oneOfTwoSamples = await measure({
         "chatgpt.com": [
@@ -4523,6 +4723,8 @@ const scenarios = [
         "one successful country sample stays unconfirmed and does not deduct",
         oneOfTwoSamples.score === baseline.score &&
           oneOfTwoSamples.node?.status === "amber" &&
+          oneOfTwoSamples.reference.status === "unknown" &&
+          oneOfTwoSamples.reference.label === "⁉️ 未确认" &&
           oneOfTwoSamples.pathText.includes("采样完整度：1 / 2（证据不足）"),
         `${baseline.score} -> ${oneOfTwoSamples.score}; ${oneOfTwoSamples.pathText.replace(/\s+/g, " ").slice(0, 220)}`,
       );
@@ -4531,7 +4733,14 @@ const scenarios = [
         "chatgpt.com": { ip: FIXTURE_RELAY_IPV6, loc: "CN", colo: "HKG" },
         "platform.openai.com": { ip: FIXTURE_RELAY_IPV6, loc: "CN", colo: "HKG" },
       });
-      ok("two AI targets deduct exactly 15", baseline.score - twoAi.score === 15 && twoAi.node?.status === "red", `${baseline.score} -> ${twoAi.score}; ${JSON.stringify(twoAi.node)}`);
+      ok(
+        "two AI targets deduct exactly 15 and produce a high-risk reference",
+        baseline.score - twoAi.score === 15 &&
+          twoAi.node?.status === "red" &&
+          twoAi.reference.status === "mismatch" &&
+          twoAi.reference.label === "‼️ 高风险",
+        `${baseline.score} -> ${twoAi.score}; ${JSON.stringify(twoAi)}`,
+      );
       ok("AI risk wording describes a service-side label", twoAi.insights.includes("AI 服务侧国家标签命中当前口径"), twoAi.insights);
 
       const unstable = await measure({
@@ -4542,7 +4751,10 @@ const scenarios = [
       });
       ok(
         "conflicting trace labels stay unconfirmed without deduction",
-        unstable.score === baseline.score && unstable.pathText.includes("国家标签不稳定"),
+        unstable.score === baseline.score &&
+          unstable.reference.status === "unknown" &&
+          unstable.reference.label === "⁉️ 未确认" &&
+          unstable.pathText.includes("国家标签不稳定"),
         `${baseline.score} -> ${unstable.score}; ${unstable.pathText.replace(/\s+/g, " ").slice(0, 180)}`,
       );
     },
@@ -5309,6 +5521,8 @@ const scenarios = [
         })),
       );
       const expectedSignalSections = {
+        ai_path_reference: "sec-aipath",
+        ai_status_reference: "sec-aistatus",
         location: "sec-ip",
         network: "sec-ip",
         reputation: "sec-multi",
@@ -5326,6 +5540,8 @@ const scenarios = [
       };
       const expectedCreatorSignals = [
         "ads_environment",
+        "ai_path_reference",
+        "ai_status_reference",
         "creator_services",
         "dns",
         "language",
@@ -5445,6 +5661,8 @@ const scenarios = [
         tag: section.tagName,
         riskLabel: section.querySelector("#network-risk-label")?.textContent.trim() || "",
         riskCounts: section.querySelector("#network-risk-counts")?.textContent.trim() || "",
+        riskLabelHiddenIcons: section.querySelectorAll('#network-risk-label .semantic-status-icon[aria-hidden="true"]').length,
+        riskCountsHiddenIcons: section.querySelectorAll('#network-risk-counts .semantic-status-icon[aria-hidden="true"]').length,
         redChips: section.querySelectorAll(".score-risk-chip-red").length,
         amberChips: section.querySelectorAll(".score-risk-chip-amber").length,
         unconfirmedChips: section.querySelectorAll(".score-risk-chip-unconfirmed").length,
@@ -5454,17 +5672,38 @@ const scenarios = [
         ).length,
       }));
       const riskCountMatch = advancedState.riskCounts.match(
-        /高风险\s+(\d+)\s+项\s*\/\s*需留意\s+(\d+)\s+项\s*\/\s*未确认\s+(\d+)\s+项/,
+        /高风险\s+(\d+)\s+项\s*\/\s*(?:❗\s*)?需留意\s+(\d+)\s+项\s*\/\s*(?:⁉️?\s*)?未确认\s+(\d+)\s+项/,
       );
       ok(
         "advanced diagnostics are the complete always-visible risk hero",
         advancedState.tag === "SECTION" &&
           Boolean(advancedState.riskLabel) &&
+          /^(?:‼️|❗|⁉️|✅)/.test(advancedState.riskLabel) &&
           /高风险|需留意|未确认|检测中|未发现/.test(advancedState.riskLabel) &&
-          /高风险|需留意|未确认/.test(advancedState.riskCounts) &&
+          advancedState.riskCounts.includes("‼️ 高风险") &&
+          advancedState.riskCounts.includes("❗ 需留意") &&
+          advancedState.riskCounts.includes("⁉️ 未确认") &&
           advancedState.visibleScore &&
           advancedState.visibleNodes === 6,
         JSON.stringify(advancedState),
+      );
+      const [riskLabelA11y, riskCountsA11y] = await Promise.all([
+        page.locator("#network-risk-label").ariaSnapshot(),
+        page.locator("#network-risk-counts").ariaSnapshot(),
+      ]);
+      const scoreNodesForA11y = await scoreNodeSnapshot(page);
+      ok(
+        "risk summary and score-node assistive names omit decorative status symbols",
+        advancedState.riskLabelHiddenIcons === 1 &&
+          advancedState.riskCountsHiddenIcons === 3 &&
+          !/[✅❗‼⁉]/u.test(riskLabelA11y) &&
+          !/[✅❗‼⁉]/u.test(riskCountsA11y) &&
+          scoreNodesForA11y.every((node) => !/[✅❗‼⁉]/u.test(node.ariaLabel)),
+        JSON.stringify({
+          riskLabel: riskLabelA11y,
+          riskCounts: riskCountsA11y,
+          nodes: scoreNodesForA11y.map((node) => node.ariaLabel),
+        }),
       );
       ok(
         "advanced risk summary counts the individual visible risk signals",
@@ -6010,6 +6249,17 @@ const scenarios = [
                 Math.round(rect.width),
                 Math.round(rect.height),
               ]),
+              supplementalRects: [
+                ...visibleChips,
+                ...document.querySelectorAll(".segmented-button, .score-links .underlink"),
+              ].map((action) => {
+                const rect = action.getBoundingClientRect();
+                return {
+                  text: action.textContent.trim(),
+                  top: Math.round(rect.top * 10) / 10,
+                  bottom: Math.round(rect.bottom * 10) / 10,
+                };
+              }),
               overflow: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth,
             };
           }),

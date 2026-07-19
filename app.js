@@ -372,7 +372,9 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       serviceId: "npm",
       label: "registry.npmjs.org",
       host: "registry.npmjs.org",
-      probeUrl: "https://registry.npmjs.org/-/ping",
+      probeUrl: "https://registry.npmjs.org/tiny-tarball/latest",
+      fallbackUrl: "https://registry.npmjs.org/-/ping",
+      fallbackMode: "no-cors",
       mode: "cors"
     }
   };
@@ -459,6 +461,30 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  function accessibleStatusText(value) {
+    return String(value == null ? "" : value)
+      .replace(/(?:✅|❗|‼️|⁉️)/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function renderStatusLabel(value) {
+    var label = String(value == null ? "" : value);
+    var pattern = /(?:✅|❗|‼️|⁉️)/gu;
+    var html = "";
+    var lastIndex = 0;
+    var match;
+    while ((match = pattern.exec(label))) {
+      html += escapeHtml(label.slice(lastIndex, match.index));
+      html +=
+        '<span class="semantic-status-icon" aria-hidden="true">' +
+        escapeHtml(match[0]) +
+        "</span>";
+      lastIndex = pattern.lastIndex;
+    }
+    return html + escapeHtml(label.slice(lastIndex));
   }
 
   function highlightRiskText(value) {
@@ -1400,8 +1426,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           return item.label + "：浏览器可达";
         }
         if (item.code === "limited") {
-          return item.label + "：" +
-            (/^官方备用资源/.test(item.status || "") ? item.status : "有响应（HTTP 详情不可读）");
+          return item.label + "：浏览器可达（HTTP 状态不可读）";
         }
         return item.label + "：" + (item.status || "未确认");
       })
@@ -3557,7 +3582,6 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           resolve({
             code: "bad",
             status:
-              (result.viaFallback ? "官方备用资源 · " : "") +
               "HTTP " +
               result.httpStatus +
               " · 服务响应异常 · " +
@@ -3567,16 +3591,9 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           return;
         }
         if (result && result.connected) {
-          if (result.viaFallback) {
-            resolve({
-              code: "limited",
-              status: "官方备用资源" + (result.confirmed ? "可达 · " : "有响应 · ") + elapsed + "ms"
-            });
-            return;
-          }
           resolve({
             code: result.confirmed ? "ok" : "limited",
-            status: (result.confirmed ? "可达 · " : "有响应 · ") + elapsed + "ms"
+            status: "可达 · " + elapsed + "ms"
           });
           return;
         }
@@ -4468,16 +4485,16 @@ import { analyzeIdentity } from "./identityAnalysis.js";
 
   function segmentStatusText(segment) {
     if (segment.status === "red") {
-      return "高风险";
+      return "‼️ 高风险";
     }
     if (segment.status === "amber") {
-      return "需留意";
+      return "❗ 需留意";
     }
     if (segment.status === "green") {
-      return "正常";
+      return "✅ 正常";
     }
     if (segment.status === "neutral") {
-      return "证据不足 · 不扣分";
+      return "⁉️ 未确认 · 不扣分";
     }
     return "检测中";
   }
@@ -4579,7 +4596,9 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         '" data-status="' +
         escapeHtml(displayStatus) +
         '" aria-label="' +
-        escapeHtml(segment.name + "：" + segmentStatusText(segment) + "，" + segmentPenaltyText(segment)) +
+        escapeHtml(
+          segment.name + "：" + accessibleStatusText(segmentStatusText(segment)) + "，" + segmentPenaltyText(segment)
+        ) +
         '" aria-describedby="' +
         tipId +
         '" aria-controls="' +
@@ -4596,7 +4615,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         '" role="tooltip"><strong class="score-tip-title">' +
         escapeHtml(segment.name) +
         '</strong><span class="score-tip-meta">状态：' +
-        escapeHtml(segmentStatusText(segment)) +
+        renderStatusLabel(segmentStatusText(segment)) +
         " · " +
         escapeHtml(segmentPenaltyText(segment)) +
         '</span><span class="score-tip-detail">' +
@@ -4631,7 +4650,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       button.dataset.status = view.status;
       button.setAttribute(
         "aria-label",
-        segment.name + "：" + segmentStatusText(segment) + "，" + segmentPenaltyText(segment)
+        segment.name + "：" + accessibleStatusText(segmentStatusText(segment)) + "，" + segmentPenaltyText(segment)
       );
       button.setAttribute("aria-describedby", view.tipId);
       button.setAttribute("aria-controls", view.tipId);
@@ -4653,7 +4672,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         var detail = tip.querySelector(".score-tip-detail");
         if (title) title.textContent = segment.name;
         if (metaLine) {
-          metaLine.textContent = "状态：" + segmentStatusText(segment) + " · " + segmentPenaltyText(segment);
+          metaLine.innerHTML =
+            "状态：" + renderStatusLabel(segmentStatusText(segment)) + " · " + escapeHtml(segmentPenaltyText(segment));
         }
         if (detail) {
           var detailHtml = renderScoreTipDetail(segment.detail);
@@ -4755,6 +4775,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         ' 项；移动端优先显示风险最高的两项">' +
         items
           .map(function (item) {
+            var statusMark = item.severity === "red" ? "‼️" : item.severity === "amber" ? "❗" : "⁉️";
             return (
               '<button class="score-risk-chip score-risk-chip-' +
               escapeHtml(item.severity || "amber") +
@@ -4762,7 +4783,9 @@ import { analyzeIdentity } from "./identityAnalysis.js";
               escapeHtml(item.section) +
               '" data-risk-row="' +
               escapeHtml(item.row || "") +
-              '"><span class="score-risk-mark">!</span><span>' +
+              '"><span class="score-risk-mark" aria-hidden="true">' +
+              statusMark +
+              '</span><span>' +
               highlightRiskText(item.label) +
               "</span></button>"
             );
@@ -4991,16 +5014,16 @@ import { analyzeIdentity } from "./identityAnalysis.js";
 
   function reportToneLabel(status) {
     if (status === "red") {
-      return "高风险";
+      return "‼️ 高风险";
     }
     if (status === "amber") {
-      return "需留意";
+      return "❗ 需留意";
     }
     if (status === "green") {
-      return "可信";
+      return "✅ 可信";
     }
     if (status === "neutral") {
-      return "未确认";
+      return "⁉️ 未确认";
     }
     return "检测中";
   }
@@ -5718,10 +5741,90 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   }
 
   function identityStatusLabel(status) {
-    if (status === "match") return "匹配";
-    if (status === "partial") return "部分匹配";
-    if (status === "mismatch") return "存在差异";
-    return "待确认";
+    if (status === "match") return "✅ 匹配";
+    if (status === "partial") return "❗ 部分匹配";
+    if (status === "mismatch") return "‼️ 存在差异";
+    return "⁉️ 未确认";
+  }
+
+  function referenceStatusLabel(status, variant) {
+    if (status === "unknown") {
+      return "⁉️ 未确认";
+    }
+    if (variant === "platform") {
+      if (status === "match") return "✅ 正常";
+      if (status === "partial") return "❗ 部分异常";
+      return "‼️ 服务异常";
+    }
+    if (status === "match") return "✅ 正常";
+    if (status === "partial") return "❗ 需留意";
+    return "‼️ 高风险";
+  }
+
+  function displayReferenceDetail(id, label, signal, options) {
+    var config = options || {};
+    return {
+      id: id,
+      label: label,
+      status: signal && signal.status ? signal.status : "unknown",
+      evidence: signal && signal.evidence ? signal.evidence : "当前尚未取得可判断证据",
+      prefix: config.prefix || "辅助诊断",
+      statusLabel: config.statusLabel || "",
+      referenceOnly: true
+    };
+  }
+
+  function aiPathReferenceDetail() {
+    var analysis = analyzeAiPathResults();
+    var status = analysis.pending
+      ? "unknown"
+      : analysis.penalty
+        ? "mismatch"
+        : analysis.hitCount
+          ? "partial"
+          : analysis.conflictCount || analysis.unavailableCount
+            ? "unknown"
+            : "match";
+    var signal = identitySignal(
+      status,
+      status === "unknown" ? 0 : 0.8,
+      scoreAiPathStatus() + "；本项用于核对服务出口标签与路径稳定性，不计入身份匹配分。",
+      "AI 服务路径探针"
+    );
+    return displayReferenceDetail("ai_path_reference", "AI 服务出口", signal, {
+      prefix: "辅助诊断",
+      statusLabel: referenceStatusLabel(status, "path")
+    });
+  }
+
+  function aiStatusReferenceDetail() {
+    var rows = state.aistatus || [];
+    var status = !rows.length || rows.some(function (row) { return row.status === "pending"; })
+      ? "unknown"
+      : rows.some(function (row) { return row.status === "red"; })
+        ? "mismatch"
+        : rows.some(function (row) { return row.status === "amber"; })
+          ? "partial"
+          : rows.some(function (row) { return row.status === "neutral"; })
+            ? "unknown"
+            : "match";
+    var evidence = rows.length
+      ? rows.map(function (row) { return row.name + "：" + row.value; }).join("；")
+      : "AI 平台状态仍在读取";
+    return displayReferenceDetail(
+      "ai_status_reference",
+      "AI 平台状态",
+      identitySignal(
+        status,
+        status === "unknown" ? 0 : 0.9,
+        evidence + "；本项用于排除平台自身故障，不计入身份匹配分。",
+        "AI 平台官方状态页"
+      ),
+      {
+        prefix: "外部状态",
+        statusLabel: referenceStatusLabel(status, "platform")
+      }
+    );
   }
 
   function identityReasonPanel(title, tone, items, emptyText) {
@@ -5807,7 +5910,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         "网络信号参考分 " +
         state.score +
         "。" +
-        risk.countText +
+        accessibleStatusText(risk.countText) +
         "。";
       if (resultStatus.textContent !== announcement) {
         resultStatus.textContent = announcement;
@@ -5816,23 +5919,27 @@ import { analyzeIdentity } from "./identityAnalysis.js";
   }
 
   function renderEmbeddedIdentitySignal(detail) {
-    var signalPrefix =
-      state.identityAnalysis && state.identityAnalysis.profile && state.identityAnalysis.profile.id === "generic"
+    var signalPrefix = detail.prefix ||
+      (state.identityAnalysis && state.identityAnalysis.profile && state.identityAnalysis.profile.id === "generic"
         ? "环境一致性"
-        : "目标匹配";
+        : "目标匹配");
     return (
       '<details class="identity-signal-card" data-status="' +
       escapeHtml(detail.status) +
       '" data-signal-id="' +
       escapeHtml(detail.id) +
+      '" data-reference-only="' +
+      (detail.referenceOnly ? "true" : "false") +
       '"' +
       (state.identitySignalOpen[detail.id] ? " open" : "") +
       '><summary class="identity-signal-card-header"><span><span class="identity-signal-prefix">' +
       escapeHtml(signalPrefix) +
       "</span><strong>" +
       escapeHtml(detail.label) +
-      '</strong></span><span class="identity-signal-card-meta"><span class="identity-signal-status">' +
-      escapeHtml(identityStatusLabel(detail.status)) +
+      '</strong></span><span class="identity-signal-card-meta"><span class="identity-signal-status" aria-label="' +
+      escapeHtml(accessibleStatusText(detail.statusLabel || identityStatusLabel(detail.status))) +
+      '">' +
+      renderStatusLabel(detail.statusLabel || identityStatusLabel(detail.status)) +
       '</span><span class="identity-signal-chevron" aria-hidden="true">›</span></span></summary><div class="identity-signal-card-body"><p class="identity-signal-evidence sensitive">' +
       escapeHtml(detail.evidence || detail.text || "证据尚未返回") +
       "</p></div></details>"
@@ -5854,6 +5961,35 @@ import { analyzeIdentity } from "./identityAnalysis.js";
       }
       grouped[sectionId].push(detail);
     });
+    var summaryConfig = {};
+    if (!grouped["sec-identity"]) {
+      var contextSignals = buildIdentitySignals(activeIdentityProfile());
+      grouped["sec-identity"] = [
+        displayReferenceDetail("context_language", "浏览器语言", contextSignals.language, {
+          prefix: "环境一致性"
+        }),
+        displayReferenceDetail("context_timezone", "系统时区", contextSignals.timezone, {
+          prefix: "环境一致性"
+        })
+      ];
+      summaryConfig["sec-identity"] = {
+        label: "身份信号参考",
+        meta: "2 项信号 · 不计入身份匹配分",
+        referenceOnly: true
+      };
+    }
+    grouped["sec-aipath"] = [aiPathReferenceDetail()];
+    summaryConfig["sec-aipath"] = {
+      label: "服务出口参考",
+      meta: "1 项参考 · 不计入身份匹配分",
+      referenceOnly: true
+    };
+    grouped["sec-aistatus"] = [aiStatusReferenceDetail()];
+    summaryConfig["sec-aistatus"] = {
+      label: "平台运行参考",
+      meta: "1 项状态 · 不计入身份匹配分",
+      referenceOnly: true
+    };
     Object.keys(grouped).forEach(function (sectionId) {
       var section = document.getElementById(sectionId);
       var panel = section && section.querySelector(".panel");
@@ -5866,12 +6002,15 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         ? sectionHeading.textContent.replace(/\s+/g, " ").trim()
         : sectionId;
       var sectionMatchLabel =
-        state.identityAnalysis.profile && state.identityAnalysis.profile.id === "generic"
-          ? "环境一致性"
-          : "目标身份匹配";
+        summaryConfig[sectionId] && summaryConfig[sectionId].label
+          ? summaryConfig[sectionId].label
+          : state.identityAnalysis.profile && state.identityAnalysis.profile.id === "generic"
+            ? "环境一致性"
+            : "目标身份匹配";
       var wrapper = document.createElement("section");
       var headingId = sectionId + "-identity-match-title";
       wrapper.className = "identity-section-match";
+      wrapper.dataset.summaryKind = summaryConfig[sectionId] && summaryConfig[sectionId].referenceOnly ? "reference" : "identity";
       wrapper.setAttribute("role", "region");
       wrapper.setAttribute("aria-labelledby", headingId);
       wrapper.innerHTML =
@@ -5882,8 +6021,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
         "</span>" +
         escapeHtml(sectionMatchLabel) +
         "</h3><span>" +
-        signals.length +
-        ' 项信号</span></div><div class="identity-section-match-grid">' +
+        escapeHtml(summaryConfig[sectionId] && summaryConfig[sectionId].meta ? summaryConfig[sectionId].meta : signals.length + " 项信号") +
+        '</span></div><div class="identity-section-match-grid">' +
         signals.map(renderEmbeddedIdentitySignal).join("") +
         "</div>";
       panel.insertBefore(wrapper, panel.firstChild);
@@ -6118,12 +6257,12 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     var label = !ready
       ? "检测中"
       : counts.red
-        ? "发现高风险信号"
+        ? "‼️ 发现高风险信号"
         : counts.amber
-          ? "存在需留意信号"
+          ? "❗ 存在需留意信号"
           : counts.unconfirmed
-            ? "部分证据未确认"
-            : "未发现明确风险";
+            ? "⁉️ 部分证据未确认"
+            : "✅ 未发现明确风险";
     return {
       label: label,
       tone: !ready
@@ -6137,11 +6276,11 @@ import { analyzeIdentity } from "./identityAnalysis.js";
               : "green",
       counts: counts,
       countText:
-        "高风险 " +
+        "‼️ 高风险 " +
         counts.red +
-        " 项 / 需留意 " +
+        " 项 / ❗ 需留意 " +
         counts.amber +
-        " 项 / 未确认 " +
+        " 项 / ⁉️ 未确认 " +
         counts.unconfirmed +
         " 项"
     };
@@ -6156,11 +6295,11 @@ import { analyzeIdentity } from "./identityAnalysis.js";
     var riskLabel = $("#network-risk-label");
     var riskCounts = $("#network-risk-counts");
     if (riskLabel) {
-      riskLabel.textContent = risk.label;
+      riskLabel.innerHTML = renderStatusLabel(risk.label);
       riskLabel.dataset.riskTone = risk.tone;
     }
     if (riskCounts) {
-      riskCounts.textContent = risk.countText;
+      riskCounts.innerHTML = renderStatusLabel(risk.countText);
     }
     $("#score-number").textContent = value;
     $("#score-status").textContent = ready ? "网络信号参考分" : "检测中";
@@ -6784,7 +6923,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
             '</div><div class="conn-grid">' +
             group.sites
               .map(function (site) {
-                var tone = site.code === "ok" ? "green" : site.code === "limited" ? "amber" : site.code === "bad" ? "red" : "pending";
+                var tone = site.code === "ok" || site.code === "limited" ? "green" : site.code === "bad" ? "red" : "pending";
+                var displayStatus = site.status === "未确认" ? "⁉️ 未确认" : site.status;
                 return (
                   '<div class="conn-card" data-conn-host="' +
                   escapeHtml(site.host) +
@@ -6792,6 +6932,8 @@ import { analyzeIdentity } from "./identityAnalysis.js";
                   escapeHtml(site.serviceId || "") +
                   '" data-probe-url="' +
                   escapeHtml(site.probeUrl || "") +
+                  '" data-result-code="' +
+                  escapeHtml(site.code || "pending") +
                   '"><span class="dot ' +
                   tone +
                   '"></span><span class="conn-card-host" title="' +
@@ -6801,7 +6943,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
                   '</span><span class="conn-card-status ' +
                   tone +
                   '">' +
-                  escapeHtml(site.status) +
+                  renderStatusLabel(displayStatus) +
                   "</span></div>"
                 );
               })
@@ -6810,7 +6952,7 @@ import { analyzeIdentity } from "./identityAnalysis.js";
           );
         })
         .join("") +
-      '<p class="conn-note">浏览器探针只发起只读 GET 请求，不读取业务内容、不带 referrer。“可达”表示官方端点返回可确认的 2xx；“有响应”表示浏览器收到了跨站响应，但受浏览器跨域安全规则影响，HTTP 状态和响应内容不可见，这不代表服务受限；“未确认”表示浏览器没有取得可判断结果，也不等同于不可达；“服务响应异常”表示端点返回了可读取的非 2xx。Nms 是本轮探针从发起请求到收到响应头的耗时；若启用备用端点，则计至其终态。该耗时包含 DNS、TLS、服务端与浏览器调度，不是 Ping，也不是完整下载耗时；结果不代表区域解锁、账号或支付功能。大陆探针只依据全球站点 · 常被墙与中国站点的连接结果，其他目标服务仅用于环境分析。</p></div></div></section>'
+      '<p class="conn-note">浏览器探针只发起只读 GET 请求，不读取业务内容、不带 referrer。只要浏览器收到目标端点或其官方备用端点的响应，统一显示为“可达”；部分跨站端点不会向浏览器公开 HTTP 状态，因此“可达”只说明请求路径已建立，不代表业务页面、登录、地区解锁、账号或支付功能可用。“未确认”表示主探针与备用探针都没有取得响应，常见原因包括超时、DNS / TLS 失败、扩展拦截或网络策略，建议重测。“服务响应异常”表示端点返回了浏览器可读取的非 2xx。Nms 是本轮从发起请求到收到响应头的耗时，包含 DNS、TLS、服务端与浏览器调度，不是 Ping，也不是完整下载耗时。大陆探针只依据全球站点 · 常被墙与中国站点的连接结果，其他目标服务仅用于环境分析。</p></div></div></section>'
     );
   }
 
